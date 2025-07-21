@@ -98,7 +98,7 @@ async function handleChatSubmit(e) {
 function addMessageToChat(message, type, tradeInfo = null) {
     const chatMessages = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
-    messageDiv.className = `chat-message ${type}-message fade-in`;
+    messageDiv.className = 'chat-bubble max-w-4xl';
     
     const now = new Date();
     const timeString = now.toLocaleTimeString('en-US', { 
@@ -109,26 +109,40 @@ function addMessageToChat(message, type, tradeInfo = null) {
     
     if (type === 'user') {
         messageDiv.innerHTML = `
-            <div class="message-content">
-                <i class="fas fa-user me-2"></i>${escapeHtml(message)}
+            <div class="flex items-start space-x-3 justify-end">
+                <div class="bg-flare-500 rounded-2xl rounded-tr-none px-4 py-3 max-w-md">
+                    <div class="text-white text-sm leading-relaxed">${escapeHtml(message)}</div>
+                    <div class="text-flare-100 text-xs mt-1">${timeString}</div>
+                </div>
+                <div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user text-white text-sm"></i>
+                </div>
             </div>
-            <div class="message-time">${timeString}</div>
         `;
     } else {
         let tradeInfoHtml = '';
         if (tradeInfo) {
             tradeInfoHtml = `
-                <div class="trade-info">
-                    <i class="fas fa-check-circle text-success me-2"></i>Trade executed: ${escapeHtml(tradeInfo)}
+                <div class="bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2 mt-2">
+                    <div class="flex items-center text-green-400 text-sm">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        Trade executed: ${escapeHtml(tradeInfo)}
+                    </div>
                 </div>
             `;
         }
         
         messageDiv.innerHTML = `
-            <div class="message-content">
-                <i class="fas fa-robot me-2"></i>${formatBotMessage(message)}
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 bg-flare-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-robot text-white text-sm"></i>
+                </div>
+                <div class="bg-gray-700/50 rounded-2xl rounded-tl-none px-4 py-3 max-w-2xl">
+                    <div class="text-white text-sm leading-relaxed">${formatBotMessage(message)}</div>
+                    <div class="text-gray-400 text-xs mt-1">${timeString}</div>
+                    ${tradeInfoHtml}
+                </div>
             </div>
-            ${tradeInfoHtml}
         `;
     }
     
@@ -180,16 +194,16 @@ async function checkBlockchainStatus() {
         if (!statusElement) return;
         
         if (data.success) {
-            statusElement.className = 'badge bg-success ms-2';
-            statusElement.innerHTML = '🔗 Flare Network Live';
+            statusElement.className = 'px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium';
+            statusElement.innerHTML = '🔗 Blockchain Connected';
         } else {
-            statusElement.className = 'badge bg-warning ms-2';
+            statusElement.className = 'px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-sm font-medium';
             statusElement.innerHTML = '⚠️ Using Fallback Data';
         }
     } catch (error) {
         const statusElement = document.getElementById('blockchain-status');
         if (statusElement) {
-            statusElement.className = 'badge bg-danger ms-2';
+            statusElement.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium';
             statusElement.innerHTML = '❌ Connection Error';
         }
     }

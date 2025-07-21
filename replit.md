@@ -4,7 +4,7 @@
 
 This is a Flask-based cryptocurrency trading dashboard focused on the Flare Network ecosystem. The application provides a comprehensive platform for tracking portfolio performance, executing mock trades, and interacting with a chatbot for trading commands. It features a dark-themed UI built with Bootstrap and includes real-time data visualization capabilities.
 
-**Status**: Fully functional chat-based trading interface with AI bot as primary interaction method.
+**Status**: Fully functional chat-based trading interface with modern Tailwind UI and conversational AI bot as primary interaction method.
 
 ## Recent Changes
 
@@ -23,6 +23,9 @@ This is a Flask-based cryptocurrency trading dashboard focused on the Flare Netw
 - ✓ **WEB3 CONNECTION**: Direct connection to Flare mainnet RPC
 - ✓ Fixed portfolio display issue - now shows real balances
 - ✓ Real API endpoints for wallet connection and onchain trading
+- ✓ **MODERN UI**: Upgraded to Tailwind CSS with gradient backgrounds and smooth animations
+- ✓ **CONVERSATIONAL AI**: Enhanced chatbot to understand natural language and context
+- ✓ **FLEXIBLE CHAT**: Bot responds naturally to questions and trading requests
 
 ## User Preferences
 

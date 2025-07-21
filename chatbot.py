@@ -154,32 +154,54 @@ WFLR, FLR, MATIC, METIS, USDT, ETH, APE
 
 All tokens are available for trading via buy/sell/swap commands. Use 'wrap FLR' to convert to WFLR for DeFi protocols.""", None
     
-    # Check for general trading questions
-    if any(word in message for word in ['how', 'what', 'trading', 'work']):
-        return """🤖 **How Trading Works:**
-        
-I'm your AI trading assistant for the Flare Network. Simply tell me what you want to do:
+    # Enhanced conversational patterns for questions
+    if any(phrase in message for phrase in ['how do', 'what can', 'tell me about', 'explain', 'how does']):
+        if 'work' in message or 'trading' in message:
+            return """I'm your conversational AI assistant for trading on Flare Network! Here's how we can work together:
 
-**Trading Commands:**
-• "buy 100 WFLR" - Purchase tokens
-• "sell 50 ETH" - Sell your holdings
-• "swap 100 USDT for WFLR" - Exchange tokens
-• "wrap 200 FLR to WFLR" - Convert to wrapped tokens
+**Natural Trading:**
+Just tell me what you want to do naturally:
+• "I want to buy 100 WFLR" or simply "buy 100 WFLR"
+• "Can you sell 50 ETH for me?" or "sell 50 ETH"
+• "Swap some USDT for WFLR" or "exchange 100 USDT for WFLR"
 
-**Information:**
-• "price ETH" - Get current prices
-• "balance" - Check your portfolio
-• "help" - See all commands
+**Ask Questions:**
+• "What's the current price of ETH?"
+• "Show me my portfolio"
+• "What tokens can I trade here?"
 
-Just type naturally - I understand various ways of saying the same thing!""", None
+**Learn More:**
+• "Tell me about Flare Network"
+• "How does wrapping work?"
 
-    # Default response for unrecognized commands
-    responses = [
-        "🤔 I didn't understand that command. Try 'help' to see what I can do, or ask me 'how does trading work?'",
-        "💡 Try commands like 'buy 100 WFLR', 'swap 50 USDT for ETH', or 'price MATIC'. Need help? Just ask!",
-        "❓ I'm here to help with trading! Use commands like 'buy', 'sell', 'swap', or ask me about prices and balances.",
-        "🚀 Ready to trade! Try 'buy [amount] [token]' or 'swap [amount] [from] for [to]'. Type 'help' for more options."
+I understand context and can have real conversations about your trades and the crypto market. No need for exact commands - just chat naturally!""", None
+    
+    # Check for token information requests
+    if any(phrase in message for phrase in ['tell me about', 'what is', 'explain']) and any(token in message for token in ['flr', 'wflr', 'eth', 'matic', 'metis', 'usdt', 'ape']):
+        return """I'd be happy to explain about these tokens! Here's what's available on Flare Network:
+
+**FLR & WFLR:** FLR is Flare's native token. WFLR is the wrapped version used in DeFi protocols. You can wrap/unwrap between them anytime.
+
+**ETH:** Ethereum bridged to Flare Network for lower fees and faster transactions.
+
+**MATIC:** Polygon's native token, available for cross-chain trading.
+
+**METIS:** From the Metis ecosystem, offering DeFi opportunities on Flare.
+
+**USDT:** The popular stablecoin for stable value trading.
+
+**APE:** ApeCoin from the Bored Ape ecosystem.
+
+All are tradeable with real-time pricing from Flare's FTSO oracles. What would you like to know more about?""", None
+
+    # Enhanced conversational responses for unrecognized input
+    conversational_responses = [
+        "I'm not sure I understood that. Could you try asking in a different way? For example, 'buy 100 WFLR' or 'what's the price of ETH?'",
+        "Hmm, I didn't catch that. I can help you trade, check prices, or view your portfolio. What would you like to do?",
+        "I'm here to help with trading on Flare Network! Try asking me about token prices, making trades, or checking your balance.",
+        "That's a bit unclear to me. I understand commands like 'buy tokens', 'check prices', or 'show portfolio'. What can I help you with?",
+        "I'd love to help, but I'm not sure what you're asking for. Try something like 'buy 50 WFLR' or 'what tokens are available?'"
     ]
     
     import random
-    return random.choice(responses), None
+    return random.choice(conversational_responses), None

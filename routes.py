@@ -26,7 +26,7 @@ def dashboard():
         if token:
             total_value += holding.balance * token.price
     
-    return render_template('dashboard.html', 
+    return render_template('dashboard_modern.html', 
                          tokens=tokens, 
                          portfolio=portfolio, 
                          recent_trades=recent_trades,
