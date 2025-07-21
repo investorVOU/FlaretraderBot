@@ -137,12 +137,48 @@ WFLR, FLR, MATIC, METIS, USDT, ETH, APE
 """
         return help_text, None
     
+    # Check for general market/token info requests
+    if any(word in message for word in ['market', 'tokens', 'supported', 'available']):
+        return """📊 **Supported Tokens on Flare Network:**
+        
+**Core Flare Tokens:**
+• FLR - Native Flare token
+• WFLR - Wrapped Flare (for DeFi)
+
+**Multi-Chain Assets:**
+• ETH - Ethereum 
+• MATIC - Polygon
+• METIS - Metis
+• APE - ApeCoin
+• USDT - Tether USD (stablecoin)
+
+All tokens are available for trading via buy/sell/swap commands. Use 'wrap FLR' to convert to WFLR for DeFi protocols.""", None
+    
+    # Check for general trading questions
+    if any(word in message for word in ['how', 'what', 'trading', 'work']):
+        return """🤖 **How Trading Works:**
+        
+I'm your AI trading assistant for the Flare Network. Simply tell me what you want to do:
+
+**Trading Commands:**
+• "buy 100 WFLR" - Purchase tokens
+• "sell 50 ETH" - Sell your holdings
+• "swap 100 USDT for WFLR" - Exchange tokens
+• "wrap 200 FLR to WFLR" - Convert to wrapped tokens
+
+**Information:**
+• "price ETH" - Get current prices
+• "balance" - Check your portfolio
+• "help" - See all commands
+
+Just type naturally - I understand various ways of saying the same thing!""", None
+
     # Default response for unrecognized commands
     responses = [
-        "🤔 I didn't understand that command. Type 'help' to see available commands.",
-        "💡 Try commands like 'buy 100 WFLR', 'sell 50 ETH', or 'price MATIC'.",
-        "❓ Need help? Type 'help' to see all available trading commands.",
-        "🚀 Ready to trade! Use commands like 'buy', 'sell', 'swap', or 'price'."
+        "🤔 I didn't understand that command. Try 'help' to see what I can do, or ask me 'how does trading work?'",
+        "💡 Try commands like 'buy 100 WFLR', 'swap 50 USDT for ETH', or 'price MATIC'. Need help? Just ask!",
+        "❓ I'm here to help with trading! Use commands like 'buy', 'sell', 'swap', or ask me about prices and balances.",
+        "🚀 Ready to trade! Try 'buy [amount] [token]' or 'swap [amount] [from] for [to]'. Type 'help' for more options."
     ]
     
     import random

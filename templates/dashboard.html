@@ -4,50 +4,137 @@
 
 {% block content %}
 <div class="row">
-    <!-- Portfolio Overview -->
+    <!-- Chat Interface - Primary -->
     <div class="col-lg-8">
         <div class="card bg-dark-custom mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-area me-2"></i>Portfolio Overview
+                    <i class="fas fa-robot me-2"></i>Flare Trading Bot
+                    <span class="badge bg-success ms-2">Online</span>
                 </h5>
             </div>
             <div class="card-body">
-                <div class="row mb-4">
-                    <div class="col-md-4">
-                        <div class="stats-card bg-primary-subtle">
-                            <div class="stats-value">${{ "%.2f"|format(total_value) }}</div>
-                            <div class="stats-label">Total Portfolio Value</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="stats-card bg-success-subtle">
-                            <div class="stats-value">{{ portfolio|length }}</div>
-                            <div class="stats-label">Holdings</div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="stats-card bg-info-subtle">
-                            <div class="stats-value">{{ recent_trades|length }}</div>
-                            <div class="stats-label">Recent Trades</div>
+                <!-- Chat Messages -->
+                <div id="chatMessages" class="chat-container mb-3">
+                    <div class="chat-message bot-message welcome-message">
+                        <div class="message-content">
+                            <i class="fas fa-robot me-2"></i>
+                            🚀 Welcome to Flare Trading! I'm your AI trading assistant. 
+                            <br><br>
+                            <strong>Try these commands:</strong><br>
+                            • "buy 100 WFLR" - Buy tokens<br>
+                            • "sell 50 ETH" - Sell tokens<br>
+                            • "swap 100 USDT for WFLR" - Swap tokens<br>
+                            • "wrap 200 FLR to WFLR" - Wrap tokens<br>
+                            • "price WFLR" - Get current price<br>
+                            • "balance" - View your portfolio<br>
+                            • "help" - Show all commands
                         </div>
                     </div>
                 </div>
                 
-                <!-- Portfolio Chart -->
-                <div class="chart-container">
-                    <canvas id="portfolioChart"></canvas>
+                <!-- Chat Input -->
+                <form id="chatForm" class="d-flex">
+                    <input type="text" id="chatInput" class="form-control bg-dark text-light me-2" 
+                           placeholder="Type your trading command... (e.g., 'buy 100 WFLR')" required>
+                    <button type="submit" class="btn btn-primary" id="sendButton">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Quick Commands -->
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>Quick Commands
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-success w-100 quick-command" data-command="buy 100 WFLR">
+                            <i class="fas fa-plus-circle me-2"></i>Buy 100 WFLR
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-danger w-100 quick-command" data-command="sell 50 ETH">
+                            <i class="fas fa-minus-circle me-2"></i>Sell 50 ETH
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-warning w-100 quick-command" data-command="swap 100 USDT for WFLR">
+                            <i class="fas fa-exchange-alt me-2"></i>Swap USDT → WFLR
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-info w-100 quick-command" data-command="wrap 200 FLR to WFLR">
+                            <i class="fas fa-shield-alt me-2"></i>Wrap FLR → WFLR
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-primary w-100 quick-command" data-command="balance">
+                            <i class="fas fa-wallet me-2"></i>Check Balance
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-secondary w-100 quick-command" data-command="price WFLR">
+                            <i class="fas fa-chart-line me-2"></i>WFLR Price
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Market Overview -->
+    <!-- Portfolio & Market Summary -->
     <div class="col-lg-4">
+        <!-- Portfolio Summary -->
         <div class="card bg-dark-custom mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-coins me-2"></i>Market Overview
+                    <i class="fas fa-wallet me-2"></i>Portfolio Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="stats-card bg-primary-subtle mb-3">
+                    <div class="stats-value">${{ "%.2f"|format(total_value) }}</div>
+                    <div class="stats-label">Total Portfolio Value</div>
+                </div>
+                
+                {% if portfolio %}
+                    {% for holding in portfolio %}
+                        {% if holding.balance > 0 %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary">
+                            <div>
+                                <div class="fw-bold">{{ holding.token_symbol }}</div>
+                                <small class="text-muted">{{ "%.4f"|format(holding.balance) }} tokens</small>
+                            </div>
+                            <div class="text-end">
+                                {% set token_price = tokens|selectattr('symbol', 'equalto', holding.token_symbol)|first %}
+                                {% if token_price %}
+                                    <div class="text-success">${{ "%.2f"|format(holding.balance * token_price.price) }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3 text-muted">
+                        <i class="fas fa-wallet fa-2x mb-2"></i>
+                        <p>No holdings yet</p>
+                        <small>Start trading to build your portfolio!</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Market Overview -->
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-coins me-2"></i>Live Prices
                 </h5>
             </div>
             <div class="card-body">
@@ -70,13 +157,13 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row mt-4">
     <!-- Recent Trades -->
-    <div class="col-lg-6">
+    <div class="col-12">
         <div class="card bg-dark-custom">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-history me-2"></i>Recent Trades
+                    <i class="fas fa-history me-2"></i>Recent Trading Activity
                 </h5>
             </div>
             <div class="card-body">
@@ -90,6 +177,7 @@
                                     <th>Amount</th>
                                     <th>Price</th>
                                     <th>Value</th>
+                                    <th>Time</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -104,6 +192,7 @@
                                     <td>{{ "%.4f"|format(trade.amount) }}</td>
                                     <td>${{ "%.6f"|format(trade.price) }}</td>
                                     <td>${{ "%.2f"|format(trade.total_value) }}</td>
+                                    <td>{{ trade.created_at.strftime('%H:%M') }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -112,61 +201,10 @@
                 {% else %}
                     <div class="text-center py-4 text-muted">
                         <i class="fas fa-chart-line fa-3x mb-3"></i>
-                        <p>No trades yet. Start trading to see your history here!</p>
-                        <a href="{{ url_for('trading') }}" class="btn btn-primary">Start Trading</a>
+                        <p>No trades yet. Use the chat above to start trading!</p>
+                        <p class="small">Try: "buy 100 WFLR" or "swap 50 USDT for ETH"</p>
                     </div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="col-lg-6">
-        <div class="card bg-dark-custom">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-bolt me-2"></i>Quick Actions
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-6">
-                        <a href="{{ url_for('trading') }}" class="btn btn-success w-100 py-3">
-                            <i class="fas fa-plus-circle mb-2 d-block"></i>
-                            Buy Tokens
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{{ url_for('trading') }}" class="btn btn-danger w-100 py-3">
-                            <i class="fas fa-minus-circle mb-2 d-block"></i>
-                            Sell Tokens
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{{ url_for('trading') }}" class="btn btn-warning w-100 py-3">
-                            <i class="fas fa-exchange-alt mb-2 d-block"></i>
-                            Swap Tokens
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{{ url_for('trading') }}" class="btn btn-secondary w-100 py-3">
-                            <i class="fas fa-shield-alt mb-2 d-block"></i>
-                            Wrap FLR
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{{ url_for('chat') }}" class="btn btn-info w-100 py-3">
-                            <i class="fas fa-robot mb-2 d-block"></i>
-                            Trading Bot
-                        </a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{{ url_for('portfolio') }}" class="btn btn-primary w-100 py-3">
-                            <i class="fas fa-chart-pie mb-2 d-block"></i>
-                            Portfolio
-                        </a>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -174,5 +212,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}
