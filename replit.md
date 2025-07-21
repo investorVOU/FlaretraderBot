@@ -4,6 +4,19 @@
 
 This is a Flask-based cryptocurrency trading dashboard focused on the Flare Network ecosystem. The application provides a comprehensive platform for tracking portfolio performance, executing mock trades, and interacting with a chatbot for trading commands. It features a dark-themed UI built with Bootstrap and includes real-time data visualization capabilities.
 
+**Status**: Fully functional with complete trading simulation, portfolio tracking, and AI chatbot interface.
+
+## Recent Changes
+
+**July 21, 2025**
+- ✓ Created complete Flask-based cryptocurrency dashboard
+- ✓ Implemented trading interface with buy/sell/swap functionality  
+- ✓ Added portfolio tracking with P&L calculations and allocation charts
+- ✓ Built AI chatbot for natural language trading commands
+- ✓ Integrated Chart.js for price charts and portfolio visualization
+- ✓ Fixed database initialization issues with trade records
+- ✓ Deployed with mock data for Flare Network tokens (WFLR, FLR, MATIC, METIS, USDT, ETH, APE)
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

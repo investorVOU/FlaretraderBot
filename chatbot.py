@@ -10,6 +10,7 @@ def process_chat_message(message):
     buy_pattern = r'buy (\d+\.?\d*) (\w+)(?:\s+with\s+(\w+))?'
     sell_pattern = r'sell (\d+\.?\d*) (\w+)'
     swap_pattern = r'swap (\d+\.?\d*) (\w+) for (\w+)'
+    wrap_pattern = r'wrap (\d+\.?\d*) (\w+)(?: to (\w+))?'
     price_pattern = r'(?:price|what.* price) (?:of )?(\w+)'
     balance_pattern = r'(?:balance|holdings?|portfolio)'
     help_pattern = r'help|commands?'
@@ -54,6 +55,29 @@ def process_chat_message(message):
         else:
             return f"❌ {result['message']}", None
     
+    # Check for wrap command (FLR to WFLR)
+    wrap_match = re.search(wrap_pattern, message)
+    if wrap_match:
+        amount = float(wrap_match.group(1))
+        from_token = wrap_match.group(2).upper()
+        to_token = wrap_match.group(3).upper() if wrap_match.group(3) else 'WFLR'
+        
+        # Handle wrapping logic
+        if from_token == 'FLR' and to_token == 'WFLR':
+            result = execute_mock_trade('swap', to_token, amount, from_token)
+            if result['success']:
+                return f"🔄 Successfully wrapped {amount} FLR to WFLR! Wrapped tokens are now in your portfolio.", f"Wrapped {amount} FLR to WFLR"
+            else:
+                return f"❌ {result['message']}", None
+        elif from_token == 'WFLR' and to_token == 'FLR':
+            result = execute_mock_trade('swap', to_token, amount, from_token)
+            if result['success']:
+                return f"🔄 Successfully unwrapped {amount} WFLR to FLR! Unwrapped tokens are now in your portfolio.", f"Unwrapped {amount} WFLR to FLR"
+            else:
+                return f"❌ {result['message']}", None
+        else:
+            return f"❌ Wrapping is only supported between FLR and WFLR tokens.", None
+    
     # Check for price query
     price_match = re.search(price_pattern, message)
     if price_match:
@@ -95,6 +119,7 @@ def process_chat_message(message):
 • `buy 100 WFLR` - Buy tokens
 • `sell 50 ETH` - Sell tokens  
 • `swap 100 USDT for WFLR` - Swap tokens
+• `wrap 200 FLR to WFLR` - Wrap FLR tokens
 
 **📊 Information:**
 • `price WFLR` - Get token price
@@ -107,6 +132,7 @@ WFLR, FLR, MATIC, METIS, USDT, ETH, APE
 *Examples:*
 - "Buy 100 WFLR"
 - "Swap 50 FLR for MATIC" 
+- "Wrap 200 FLR to WFLR"
 - "What's the price of ETH?"
 """
         return help_text, None

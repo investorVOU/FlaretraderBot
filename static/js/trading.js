@@ -14,20 +14,37 @@ function initializeTradingInterface() {
     document.getElementById('buyForm').addEventListener('submit', handleBuySubmit);
     document.getElementById('sellForm').addEventListener('submit', handleSellSubmit);
     document.getElementById('swapForm').addEventListener('submit', handleSwapSubmit);
+    document.getElementById('wrapForm').addEventListener('submit', handleWrapSubmit);
     
     // Token selection changes
     document.getElementById('buyToken').addEventListener('change', updateBuyPriceInfo);
     document.getElementById('sellToken').addEventListener('change', updateSellPriceInfo);
     document.getElementById('swapFromToken').addEventListener('change', updateSwapPriceInfo);
     document.getElementById('swapToToken').addEventListener('change', updateSwapPriceInfo);
+    document.getElementById('wrapFromToken').addEventListener('change', updateWrapPriceInfo);
+    document.getElementById('wrapToToken').addEventListener('change', updateWrapPriceInfo);
     
     // Amount input changes
     document.getElementById('buyAmount').addEventListener('input', updateBuyPriceInfo);
     document.getElementById('sellAmount').addEventListener('input', updateSellPriceInfo);
     document.getElementById('swapAmount').addEventListener('input', updateSwapPriceInfo);
+    document.getElementById('wrapAmount').addEventListener('input', updateWrapPriceInfo);
     
     // Chart token selection
     document.getElementById('chartTokenSelect').addEventListener('change', updatePriceChart);
+    
+    // Handle wrap token selection logic
+    document.getElementById('wrapFromToken').addEventListener('change', function() {
+        const fromToken = this.value;
+        const toTokenSelect = document.getElementById('wrapToToken');
+        
+        if (fromToken === 'FLR') {
+            toTokenSelect.value = 'WFLR';
+        } else if (fromToken === 'WFLR') {
+            toTokenSelect.value = 'FLR';
+        }
+        updateWrapPriceInfo();
+    });
 }
 
 async function handleBuySubmit(e) {
@@ -51,6 +68,15 @@ async function handleSwapSubmit(e) {
     const fromToken = document.getElementById('swapFromToken').value;
     const toToken = document.getElementById('swapToToken').value;
     const amount = parseFloat(document.getElementById('swapAmount').value);
+    
+    await executeTrade('swap', toToken, amount, fromToken);
+}
+
+async function handleWrapSubmit(e) {
+    e.preventDefault();
+    const fromToken = document.getElementById('wrapFromToken').value;
+    const toToken = document.getElementById('wrapToToken').value;
+    const amount = parseFloat(document.getElementById('wrapAmount').value);
     
     await executeTrade('swap', toToken, amount, fromToken);
 }
@@ -153,6 +179,39 @@ function updatePriceInfo(elementId, token, amount) {
         `;
     } else {
         document.getElementById(elementId).innerHTML = '';
+    }
+}
+
+function updateWrapPriceInfo() {
+    const fromToken = document.getElementById('wrapFromToken').value;
+    const toToken = document.getElementById('wrapToToken').value;
+    const amount = parseFloat(document.getElementById('wrapAmount').value) || 0;
+    
+    if (fromToken && toToken && amount > 0 && tokenPrices[fromToken] && tokenPrices[toToken]) {
+        const fromPrice = tokenPrices[fromToken];
+        const toPrice = tokenPrices[toToken];
+        const totalValue = amount * fromPrice;
+        const receiveAmount = totalValue / toPrice;
+        
+        // For wrapping, it's usually 1:1 but we'll use the price calculation
+        const wrapAction = fromToken === 'FLR' ? 'Wrap' : 'Unwrap';
+        
+        document.getElementById('wrapPriceInfo').innerHTML = `
+            <div class="d-flex justify-content-between">
+                <span>You ${wrapAction.toLowerCase()}:</span>
+                <span class="price-display">${amount} ${fromToken}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>You receive:</span>
+                <span class="price-display">${receiveAmount.toFixed(6)} ${toToken}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>${wrapAction} rate:</span>
+                <span class="total-cost">1:${(receiveAmount / amount).toFixed(6)}</span>
+            </div>
+        `;
+    } else {
+        document.getElementById('wrapPriceInfo').innerHTML = '';
     }
 }
 

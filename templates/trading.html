@@ -24,6 +24,11 @@
                             <i class="fas fa-exchange-alt me-1"></i>Swap
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="wrap-tab" data-bs-toggle="tab" data-bs-target="#wrap" type="button" role="tab">
+                            <i class="fas fa-shield-alt me-1"></i>Wrap
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -111,6 +116,39 @@
                             </div>
                             <button type="submit" class="btn btn-warning w-100">
                                 <i class="fas fa-exchange-alt me-2"></i>Swap Tokens
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Wrap Tab -->
+                    <div class="tab-pane fade" id="wrap" role="tabpanel">
+                        <form id="wrapForm">
+                            <div class="mb-3">
+                                <label for="wrapFromToken" class="form-label">From Token</label>
+                                <select class="form-select bg-dark text-light" id="wrapFromToken" required>
+                                    <option value="FLR">FLR - Flare</option>
+                                    <option value="WFLR">WFLR - Wrapped Flare</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="wrapAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="wrapAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="text-center mb-3">
+                                <i class="fas fa-shield-alt text-info fa-lg"></i>
+                            </div>
+                            <div class="mb-3">
+                                <label for="wrapToToken" class="form-label">To Token</label>
+                                <select class="form-select bg-dark text-light" id="wrapToToken" required>
+                                    <option value="WFLR">WFLR - Wrapped Flare</option>
+                                    <option value="FLR">FLR - Flare</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="wrapPriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="fas fa-shield-alt me-2"></i>Wrap Tokens
                             </button>
                         </form>
                     </div>
