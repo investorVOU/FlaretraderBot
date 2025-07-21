@@ -3,14 +3,20 @@ from app import app, db
 from models import Token, Portfolio, Trade, ChatMessage
 from mock_data import initialize_mock_data, get_current_prices, execute_mock_trade
 from chatbot import process_chat_message
+from blockchain_service import get_blockchain_service
+from wallet_service import get_wallet_service, require_wallet_connection
 import json
+import logging
 from datetime import datetime, timedelta
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 @app.route('/')
 def dashboard():
     initialize_mock_data()
     tokens = Token.query.all()
-    portfolio = Portfolio.query.all()
+    portfolio = Portfolio.query.filter(Portfolio.balance > 0).all()
     recent_trades = Trade.query.order_by(Trade.created_at.desc()).limit(5).all()
     
     # Calculate total portfolio value
@@ -150,12 +156,174 @@ def get_price_data(symbol):
 
 @app.route('/api/refresh_prices')
 def refresh_prices():
-    get_current_prices()  # This updates the database with new mock prices
-    tokens = Token.query.all()
+    """Refresh prices from live Flare Network data"""
+    try:
+        blockchain_service = get_blockchain_service()
+        blockchain_service.update_token_prices()
+        
+        tokens = Token.query.all()
+        return jsonify({
+            'success': True,
+            'message': 'Prices updated from live data',
+            'tokens': [{
+                'symbol': t.symbol,
+                'price': t.price,
+                'change_24h': t.change_24h
+            } for t in tokens]
+        })
+    except Exception as e:
+        logging.error(f"Error refreshing prices: {e}")
+        # Fallback to mock data
+        get_current_prices()
+        tokens = Token.query.all()
+        return jsonify({
+            'success': False,
+            'message': 'Using fallback data - live prices unavailable',
+            'tokens': [{
+                'symbol': t.symbol,
+                'price': t.price,
+                'change_24h': t.change_24h
+            } for t in tokens]
+        })
+
+# Wallet connection endpoints
+@app.route('/api/wallet/config')
+def get_wallet_config():
+    """Get WalletConnect configuration"""
+    wallet_service = get_wallet_service()
+    return jsonify(wallet_service.get_wallet_config())
+
+@app.route('/api/wallet/connect', methods=['POST'])
+def connect_wallet():
+    """Connect a wallet via WalletConnect"""
+    try:
+        data = request.json
+        wallet_address = data.get('address')
+        chain_id = data.get('chainId')
+        
+        wallet_service = get_wallet_service()
+        success = wallet_service.connect_wallet(wallet_address, chain_id)
+        
+        if success:
+            # Update portfolio with real balances
+            blockchain_service = get_blockchain_service()
+            for token in Token.query.all():
+                real_balance = blockchain_service.get_wallet_balance(wallet_address, token.symbol)
+                
+                portfolio_entry = Portfolio.query.filter_by(token_symbol=token.symbol).first()
+                if portfolio_entry:
+                    portfolio_entry.balance = real_balance
+                else:
+                    if real_balance > 0:
+                        new_entry = Portfolio(
+                            token_symbol=token.symbol,
+                            balance=real_balance,
+                            avg_buy_price=token.price
+                        )
+                        db.session.add(new_entry)
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Wallet connected successfully',
+                'address': wallet_address,
+                'chainId': chain_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to connect wallet'
+            }), 400
+            
+    except Exception as e:
+        logging.error(f"Error connecting wallet: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Connection error: {str(e)}'
+        }), 500
+
+@app.route('/api/wallet/disconnect', methods=['POST'])
+def disconnect_wallet():
+    """Disconnect the current wallet"""
+    try:
+        wallet_service = get_wallet_service()
+        wallet_service.disconnect_wallet()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Wallet disconnected successfully'
+        })
+    except Exception as e:
+        logging.error(f"Error disconnecting wallet: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Disconnection error: {str(e)}'
+        }), 500
+
+@app.route('/api/wallet/status')
+def wallet_status():
+    """Get current wallet connection status"""
+    wallet_service = get_wallet_service()
+    
     return jsonify({
-        'tokens': [{
-            'symbol': t.symbol,
-            'price': t.price,
-            'change_24h': t.change_24h
-        } for t in tokens]
+        'connected': wallet_service.is_wallet_connected(),
+        'address': wallet_service.get_connected_wallet(),
+        'chain': wallet_service.get_chain_info()
     })
+
+@app.route('/api/execute_onchain_trade', methods=['POST'])
+def execute_onchain_trade():
+    """Execute a real onchain trade via smart contracts"""
+    try:
+        wallet_service = get_wallet_service()
+        if not wallet_service.is_wallet_connected():
+            return jsonify({
+                'success': False,
+                'message': 'Wallet connection required for onchain trading'
+            }), 401
+        
+        data = request.json
+        trade_type = data.get('type')
+        from_token = data.get('from_token')
+        to_token = data.get('token')
+        amount = float(data.get('amount', 0))
+        
+        wallet_address = wallet_service.get_connected_wallet()
+        blockchain_service = get_blockchain_service()
+        
+        if trade_type == 'swap':
+            success, message = blockchain_service.execute_swap_on_enosys(
+                from_token, to_token, amount, wallet_address
+            )
+            
+            if success:
+                # Record the trade
+                trade = Trade(
+                    trade_type=trade_type,
+                    from_token=from_token,
+                    to_token=to_token,
+                    amount=amount,
+                    price=Token.query.filter_by(symbol=to_token).first().price,
+                    total_value=amount * Token.query.filter_by(symbol=to_token).first().price
+                )
+                db.session.add(trade)
+                db.session.commit()
+            
+            return jsonify({
+                'success': success,
+                'message': message,
+                'onchain': True
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Only swap operations supported onchain currently'
+            }), 400
+            
+    except Exception as e:
+        logging.error(f"Error executing onchain trade: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Onchain trade failed: {str(e)}'
+        }), 500

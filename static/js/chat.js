@@ -12,6 +12,9 @@ function initializeChatInterface() {
     const chatInput = document.getElementById('chatInput');
     const sendButton = document.getElementById('sendButton');
     
+    // Check blockchain connection status
+    checkBlockchainStatus();
+    
     // Handle form submission
     chatForm.addEventListener('submit', handleChatSubmit);
     
@@ -36,6 +39,9 @@ function initializeChatInterface() {
     
     // Auto-focus on chat input
     chatInput.focus();
+    
+    // Periodically refresh blockchain status
+    setInterval(checkBlockchainStatus, 30000); // Check every 30 seconds
 }
 
 async function handleChatSubmit(e) {
@@ -163,3 +169,31 @@ if (chatMessages) {
     const observer = new MutationObserver(scrollToBottom);
     observer.observe(chatMessages, { childList: true });
 }
+
+// Blockchain status checking function
+async function checkBlockchainStatus() {
+    try {
+        const response = await fetch('/api/refresh_prices');
+        const data = await response.json();
+        
+        const statusElement = document.getElementById('blockchain-status');
+        if (!statusElement) return;
+        
+        if (data.success) {
+            statusElement.className = 'badge bg-success ms-2';
+            statusElement.innerHTML = '🔗 Flare Network Live';
+        } else {
+            statusElement.className = 'badge bg-warning ms-2';
+            statusElement.innerHTML = '⚠️ Using Fallback Data';
+        }
+    } catch (error) {
+        const statusElement = document.getElementById('blockchain-status');
+        if (statusElement) {
+            statusElement.className = 'badge bg-danger ms-2';
+            statusElement.innerHTML = '❌ Connection Error';
+        }
+    }
+}
+
+// Check blockchain status periodically
+setInterval(checkBlockchainStatus, 30000); // Check every 30 seconds

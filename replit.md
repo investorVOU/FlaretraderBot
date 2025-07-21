@@ -17,7 +17,12 @@ This is a Flask-based cryptocurrency trading dashboard focused on the Flare Netw
 - ✓ Simplified navigation to focus on AI Trading as main interface
 - ✓ Portfolio and market data shown as sidebar to chat interface
 - ✓ All trading operations (buy/sell/swap/wrap) accessible via natural language
-- ✓ Mock data supports full Flare Network ecosystem trading simulation
+- ✓ **REAL BLOCKCHAIN INTEGRATION**: Connected to actual Flare Network
+- ✓ **FTSO INTEGRATION**: Live price feeds from Flare Time Series Oracles
+- ✓ **FDC INTEGRATION**: Address validation via Flare Data Connector
+- ✓ **WEB3 CONNECTION**: Direct connection to Flare mainnet RPC
+- ✓ Fixed portfolio display issue - now shows real balances
+- ✓ Real API endpoints for wallet connection and onchain trading
 
 ## User Preferences
 
