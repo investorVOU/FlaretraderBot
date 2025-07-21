@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio - Flare Crypto Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Portfolio Summary -->
+    <div class="col-12">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stats-card bg-primary-subtle">
+                            <div class="stats-value">${{ "%.2f"|format(total_value) }}</div>
+                            <div class="stats-label">Total Value</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card bg-info-subtle">
+                            <div class="stats-value">${{ "%.2f"|format(total_cost) }}</div>
+                            <div class="stats-label">Total Cost</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card {% if total_pnl >= 0 %}bg-success-subtle{% else %}bg-danger-subtle{% endif %}">
+                            <div class="stats-value">${{ "%.2f"|format(total_pnl) }}</div>
+                            <div class="stats-label">Total P&L</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card {% if total_pnl_percent >= 0 %}bg-success-subtle{% else %}bg-danger-subtle{% endif %}">
+                            <div class="stats-value">{{ "%.2f"|format(total_pnl_percent) }}%</div>
+                            <div class="stats-label">Total Return</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Portfolio Allocation Chart -->
+    <div class="col-lg-6">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-pie-chart me-2"></i>Portfolio Allocation
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="allocationChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Chart -->
+    <div class="col-lg-6">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-area me-2"></i>Performance Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Holdings Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-coins me-2"></i>Your Holdings
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if portfolio_data %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Token</th>
+                                    <th>Balance</th>
+                                    <th>Current Price</th>
+                                    <th>Current Value</th>
+                                    <th>Avg Buy Price</th>
+                                    <th>Cost Basis</th>
+                                    <th>P&L</th>
+                                    <th>Return %</th>
+                                    <th>Allocation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in portfolio_data %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">{{ item.token.symbol }}</div>
+                                        <small class="text-muted">{{ item.token.name }}</small>
+                                    </td>
+                                    <td>{{ "%.6f"|format(item.holding.balance) }}</td>
+                                    <td class="price" data-token="{{ item.token.symbol }}">${{ "%.6f"|format(item.token.price) }}</td>
+                                    <td>${{ "%.2f"|format(item.current_value) }}</td>
+                                    <td>${{ "%.6f"|format(item.holding.avg_buy_price) }}</td>
+                                    <td>${{ "%.2f"|format(item.cost_basis) }}</td>
+                                    <td class="{% if item.pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        ${{ "%.2f"|format(item.pnl) }}
+                                    </td>
+                                    <td class="{% if item.pnl_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {{ "+" if item.pnl_percent >= 0 else "" }}{{ "%.2f"|format(item.pnl_percent) }}%
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 style="width: {{ (item.current_value / total_value * 100) if total_value > 0 else 0 }}%">
+                                                {{ "%.1f"|format((item.current_value / total_value * 100) if total_value > 0 else 0) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-wallet fa-4x mb-3"></i>
+                        <h4>No Holdings Found</h4>
+                        <p>Your portfolio is empty. Start trading to build your holdings!</p>
+                        <a href="{{ url_for('trading') }}" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i>Start Trading
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/portfolio.js') }}"></script>
+<script>
+    // Pass portfolio data to JavaScript
+    const portfolioData = {{ portfolio_data | tojson | safe }};
+    const totalValue = {{ total_value }};
+</script>
+{% endblock %}

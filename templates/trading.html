@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Trading - Flare Crypto Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Trading Panel -->
+    <div class="col-lg-4">
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="tradingTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="buy-tab" data-bs-toggle="tab" data-bs-target="#buy" type="button" role="tab">
+                            <i class="fas fa-plus-circle me-1"></i>Buy
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sell-tab" data-bs-toggle="tab" data-bs-target="#sell" type="button" role="tab">
+                            <i class="fas fa-minus-circle me-1"></i>Sell
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="swap-tab" data-bs-toggle="tab" data-bs-target="#swap" type="button" role="tab">
+                            <i class="fas fa-exchange-alt me-1"></i>Swap
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="tradingTabContent">
+                    <!-- Buy Tab -->
+                    <div class="tab-pane fade show active" id="buy" role="tabpanel">
+                        <form id="buyForm">
+                            <div class="mb-3">
+                                <label for="buyToken" class="form-label">Token</label>
+                                <select class="form-select bg-dark text-light" id="buyToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="buyAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="buyAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="buyPriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-shopping-cart me-2"></i>Buy Tokens
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Sell Tab -->
+                    <div class="tab-pane fade" id="sell" role="tabpanel">
+                        <form id="sellForm">
+                            <div class="mb-3">
+                                <label for="sellToken" class="form-label">Token</label>
+                                <select class="form-select bg-dark text-light" id="sellToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="sellAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="sellAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="sellPriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100">
+                                <i class="fas fa-hand-holding-usd me-2"></i>Sell Tokens
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Swap Tab -->
+                    <div class="tab-pane fade" id="swap" role="tabpanel">
+                        <form id="swapForm">
+                            <div class="mb-3">
+                                <label for="swapFromToken" class="form-label">From Token</label>
+                                <select class="form-select bg-dark text-light" id="swapFromToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="swapAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="swapAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="text-center mb-3">
+                                <i class="fas fa-arrow-down text-primary fa-lg"></i>
+                            </div>
+                            <div class="mb-3">
+                                <label for="swapToToken" class="form-label">To Token</label>
+                                <select class="form-select bg-dark text-light" id="swapToToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="swapPriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="fas fa-exchange-alt me-2"></i>Swap Tokens
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Market Data & Charts -->
+    <div class="col-lg-8">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Price Chart
+                    </h5>
+                    <select class="form-select bg-dark text-light w-auto" id="chartTokenSelect">
+                        {% for token in tokens %}
+                        <option value="{{ token.symbol }}" {% if loop.first %}selected{% endif %}>{{ token.symbol }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Market Data Table -->
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-table me-2"></i>Market Data
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Price</th>
+                                <th>24h Change</th>
+                                <th>Market Cap</th>
+                                <th>Volume (24h)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for token in tokens %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ token.symbol }}</div>
+                                    <small class="text-muted">{{ token.name }}</small>
+                                </td>
+                                <td class="price" data-token="{{ token.symbol }}">${{ "%.6f"|format(token.price) }}</td>
+                                <td class="change {% if token.change_24h >= 0 %}text-success{% else %}text-danger{% endif %}" data-token="{{ token.symbol }}">
+                                    {{ "+" if token.change_24h >= 0 else "" }}{{ "%.2f"|format(token.change_24h) }}%
+                                </td>
+                                <td>${{ "{:,.0f}".format(token.market_cap) if token.market_cap else 'N/A' }}</td>
+                                <td>${{ "{:,.0f}".format(token.volume_24h) if token.volume_24h else 'N/A' }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-success" onclick="quickBuy('{{ token.symbol }}')">Buy</button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="quickSell('{{ token.symbol }}')">Sell</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/trading.js') }}"></script>
+{% endblock %}

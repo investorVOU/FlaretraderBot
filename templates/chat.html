@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Trading Bot - Flare Crypto Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-robot me-2"></i>Flare Trading Bot
+                    <span class="badge bg-success ms-2">Online</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Chat Messages -->
+                <div id="chatMessages" class="chat-container mb-3">
+                    {% if messages %}
+                        {% for message in messages %}
+                        <div class="chat-message user-message">
+                            <div class="message-content">
+                                <i class="fas fa-user me-2"></i>{{ message.message }}
+                            </div>
+                            <div class="message-time">{{ message.created_at.strftime('%H:%M') }}</div>
+                        </div>
+                        <div class="chat-message bot-message">
+                            <div class="message-content">
+                                <i class="fas fa-robot me-2"></i>{{ message.response }}
+                            </div>
+                            {% if message.trade_executed %}
+                            <div class="trade-info">
+                                <i class="fas fa-check-circle text-success me-2"></i>Trade executed: {{ message.trade_executed }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="chat-message bot-message welcome-message">
+                            <div class="message-content">
+                                <i class="fas fa-robot me-2"></i>
+                                🚀 Welcome to the Flare Trading Bot! I can help you trade tokens with simple commands.
+                                <br><br>
+                                <strong>Try these commands:</strong><br>
+                                • "buy 100 WFLR" - Buy tokens<br>
+                                • "sell 50 ETH" - Sell tokens<br>
+                                • "swap 100 USDT for WFLR" - Swap tokens<br>
+                                • "price WFLR" - Get current price<br>
+                                • "balance" - View your portfolio<br>
+                                • "help" - Show all commands
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Chat Input -->
+                <form id="chatForm" class="d-flex">
+                    <input type="text" id="chatInput" class="form-control bg-dark text-light me-2" 
+                           placeholder="Type your trading command... (e.g., 'buy 100 WFLR')" required>
+                    <button type="submit" class="btn btn-primary" id="sendButton">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Trading Examples -->
+        <div class="card bg-dark-custom mt-4">
+            <div class="card-header">
+                <h6 class="card-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>Quick Commands
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-success w-100 quick-command" data-command="buy 100 WFLR">
+                            <i class="fas fa-plus-circle me-2"></i>Buy 100 WFLR
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-danger w-100 quick-command" data-command="sell 50 ETH">
+                            <i class="fas fa-minus-circle me-2"></i>Sell 50 ETH
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-warning w-100 quick-command" data-command="swap 100 USDT for WFLR">
+                            <i class="fas fa-exchange-alt me-2"></i>Swap USDT → WFLR
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-info w-100 quick-command" data-command="price WFLR">
+                            <i class="fas fa-chart-line me-2"></i>Get WFLR Price
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100 quick-command" data-command="balance">
+                            <i class="fas fa-wallet me-2"></i>Check Balance
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-secondary w-100 quick-command" data-command="help">
+                            <i class="fas fa-question-circle me-2"></i>Show Help
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

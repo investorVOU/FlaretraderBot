@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Flare Crypto Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Portfolio Overview -->
+    <div class="col-lg-8">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-area me-2"></i>Portfolio Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stats-card bg-primary-subtle">
+                            <div class="stats-value">${{ "%.2f"|format(total_value) }}</div>
+                            <div class="stats-label">Total Portfolio Value</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-card bg-success-subtle">
+                            <div class="stats-value">{{ portfolio|length }}</div>
+                            <div class="stats-label">Holdings</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-card bg-info-subtle">
+                            <div class="stats-value">{{ recent_trades|length }}</div>
+                            <div class="stats-label">Recent Trades</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Portfolio Chart -->
+                <div class="chart-container">
+                    <canvas id="portfolioChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Market Overview -->
+    <div class="col-lg-4">
+        <div class="card bg-dark-custom mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-coins me-2"></i>Market Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for token in tokens %}
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary">
+                    <div>
+                        <div class="fw-bold">{{ token.symbol }}</div>
+                        <small class="text-muted">{{ token.name }}</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="price" data-token="{{ token.symbol }}">${{ "%.6f"|format(token.price) }}</div>
+                        <small class="change {% if token.change_24h >= 0 %}text-success{% else %}text-danger{% endif %}" data-token="{{ token.symbol }}">
+                            {{ "+" if token.change_24h >= 0 else "" }}{{ "%.2f"|format(token.change_24h) }}%
+                        </small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Trades -->
+    <div class="col-lg-6">
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Trades
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_trades %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Token</th>
+                                    <th>Amount</th>
+                                    <th>Price</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in recent_trades %}
+                                <tr>
+                                    <td>
+                                        <span class="badge {% if trade.trade_type == 'buy' %}bg-success{% elif trade.trade_type == 'sell' %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ trade.trade_type.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ trade.to_token }}</td>
+                                    <td>{{ "%.4f"|format(trade.amount) }}</td>
+                                    <td>${{ "%.6f"|format(trade.price) }}</td>
+                                    <td>${{ "%.2f"|format(trade.total_value) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-chart-line fa-3x mb-3"></i>
+                        <p>No trades yet. Start trading to see your history here!</p>
+                        <a href="{{ url_for('trading') }}" class="btn btn-primary">Start Trading</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="col-lg-6">
+        <div class="card bg-dark-custom">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <a href="{{ url_for('trading') }}" class="btn btn-success w-100 py-3">
+                            <i class="fas fa-plus-circle mb-2 d-block"></i>
+                            Buy Tokens
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="{{ url_for('trading') }}" class="btn btn-danger w-100 py-3">
+                            <i class="fas fa-minus-circle mb-2 d-block"></i>
+                            Sell Tokens
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="{{ url_for('trading') }}" class="btn btn-warning w-100 py-3">
+                            <i class="fas fa-exchange-alt mb-2 d-block"></i>
+                            Swap Tokens
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a href="{{ url_for('chat') }}" class="btn btn-info w-100 py-3">
+                            <i class="fas fa-robot mb-2 d-block"></i>
+                            Trading Bot
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
