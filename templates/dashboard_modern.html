@@ -82,7 +82,7 @@
                                 <span>Send</span>
                             </button>
                         </form>
-                        
+
                         <!-- Quick Actions -->
                         <div class="mt-4">
                             <div class="text-xs text-gray-400 mb-2">Quick actions:</div>
@@ -112,7 +112,7 @@
                     <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
                         <i class="fas fa-wallet mr-2 text-flare-500"></i>Portfolio
                     </h3>
-                    
+
                     {% if portfolio %}
                         <div class="space-y-3">
                             {% for holding in portfolio %}
@@ -152,7 +152,7 @@
                     <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
                         <i class="fas fa-chart-line mr-2 text-flare-500"></i>Live Prices
                     </h3>
-                    
+
                     <div class="space-y-3">
                         {% for token in tokens %}
                             <div class="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
@@ -182,7 +182,7 @@
                     <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
                         <i class="fas fa-history mr-2 text-flare-500"></i>Recent Trades
                     </h3>
-                    
+
                     <div class="space-y-2">
                         {% for trade in recent_trades[:3] %}
                             <div class="flex items-center justify-between p-2 text-sm">
@@ -190,7 +190,7 @@
                                     <div class="w-6 h-6 {% if trade.trade_type == 'buy' %}bg-green-500{% elif trade.trade_type == 'sell' %}bg-red-500{% else %}bg-yellow-500{% endif %} rounded-full flex items-center justify-center">
                                         <i class="fas {% if trade.trade_type == 'buy' %}fa-plus{% elif trade.trade_type == 'sell' %}fa-minus{% else %}fa-exchange-alt{% endif %} text-white text-xs"></i>
                                     </div>
-                                    <span class="text-white">{{ trade.trade_type.title() }} {{ trade.to_token }}</span>
+                                    <span class="text-white">{{ trade.to_token }}</span>
                                 </div>
                                 <div class="text-gray-400">${{ "%.0f"|format(trade.total_value) }}</div>
                             </div>

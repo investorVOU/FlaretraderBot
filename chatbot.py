@@ -1,390 +1,438 @@
+
 import re
+import json
 from mock_data import execute_mock_trade
 from models import Token
+from blockchain_service import get_blockchain_service
 
 def process_chat_message(message):
-    """
-    Process chat message and extract trading commands including DEX functions
-    Returns response and trade information
-    """
+    """Enhanced AI chatbot with cross-chain capabilities and friendly personality"""
     message = message.lower().strip()
+    
+    # Cross-chain patterns
+    cross_chain_pattern = r'(?:bridge|swap|send|transfer) (\d+\.?\d*) (\w+) (?:from (\w+) )?to (\w+)(?: (?:chain|network))?'
+    cross_chain_quote_pattern = r'(?:quote|price|cost|fee).* (\d+\.?\d*) (\w+) (?:from (\w+) )?to (\w+)'
+    
+    # Enhanced trading patterns
+    buy_pattern = r'(?:buy|purchase|get|acquire) (\d+\.?\d*) (\w+)(?:\s+(?:with|using)\s+(\w+))?(?:\s+on\s+(\w+))?'
+    sell_pattern = r'(?:sell|dump|liquidate) (\d+\.?\d*) (\w+)(?:\s+on\s+(\w+))?'
+    swap_pattern = r'(?:swap|exchange|trade) (\d+\.?\d*) (\w+) (?:for|to) (\w+)(?:\s+on\s+(\w+))?'
+    wrap_pattern = r'(?:wrap|unwrap) (\d+\.?\d*) (\w+)(?: to (\w+))?'
+    
+    # Information patterns
+    price_pattern = r'(?:price|cost|value|worth).* (\w+)(?:\s+on\s+(\w+))?'
+    balance_pattern = r'(?:balance|holdings?|portfolio|wallet)'
+    gas_pattern = r'(?:gas|fees?|cost).* (?:on )?(\w+)'
+    chains_pattern = r'(?:chains?|networks?|supported)'
+    
+    # Conversational patterns
+    greeting_pattern = r'(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|greetings?)'
+    help_pattern = r'help|commands?|what.* (?:can|do)|how.* work'
+    thanks_pattern = r'thanks?|thank you|thx|appreciate'
+    
+    # Check for cross-chain swap requests
+    cross_chain_match = re.search(cross_chain_pattern, message)
+    if cross_chain_match:
+        amount = float(cross_chain_match.group(1))
+        from_token = cross_chain_match.group(2).upper()
+        from_chain = cross_chain_match.group(3) or 'flare'
+        to_chain = cross_chain_match.group(4).lower()
+        
+        # Map common chain aliases
+        chain_aliases = {
+            'eth': 'ethereum',
+            'matic': 'polygon',
+            'poly': 'polygon',
+            'bnb': 'bsc',
+            'binance': 'bsc',
+            'avax': 'avalanche'
+        }
+        to_chain = chain_aliases.get(to_chain, to_chain)
+        
+        # Assume same token on destination chain or ETH as default
+        to_token = from_token if from_token in ['USDT', 'USDC'] else 'ETH'
+        
+        blockchain_service = get_blockchain_service()
+        quote = blockchain_service.get_cross_chain_quote(from_chain, to_chain, from_token, to_token, amount)
+        
+        if 'error' in quote:
+            return f"❌ Cross-chain quote failed: {quote['error']}", None
+        
+        response = f"""🌉 **Cross-Chain Swap Quote:**
 
-    # Help command
-    if any(word in message for word in ['help', 'commands', 'what can you do']):
-        return get_help_response(), None
+**Route:** {quote['from_chain'].title()} → {quote['to_chain'].title()}
+**Trade:** {amount} {from_token} → {quote['amount_out']:.6f} {to_token}
 
-    # Price query
-    price_match = re.search(r'(?:price|cost|value)\s+(?:of\s+)?(\w+)', message)
-    if price_match:
-        token_symbol = price_match.group(1).upper()
-        return get_price_response(token_symbol), None
+**💰 Fees Breakdown:**
+• Bridge Fee: ${quote['bridge_fee']:.2f}
+• Gas Estimate: ${quote['gas_estimate']:.2f}
+• Total Fees: ${quote['total_fee_usd']:.2f}
 
-    # Portfolio/balance query
-    if any(word in message for word in ['portfolio', 'balance', 'holdings', 'what do i have']):
-        return get_portfolio_response(), None
+**📊 Trade Details:**
+• Price Impact: {quote['price_impact']:.2f}%
+• Est. Time: {quote['estimated_time']}
+• Route: {quote['route']['name']}
 
-    # DEX-specific commands
-
-    # 1inch swap: "swap 100 WFLR for ETH using 1inch"
-    oneinch_match = re.search(r'swap\s+(\d+(?:\.\d+)?)\s+(\w+)\s+for\s+(\w+)\s+using\s+1inch', message)
-    if oneinch_match:
-        amount = float(oneinch_match.group(1))
-        from_token = oneinch_match.group(2).upper()
-        to_token = oneinch_match.group(3).upper()
-        #return execute_dex_swap_command(from_token, to_token, amount, use_oneinch=True)
-        return "DEX swap via 1inch is not implemented yet", None
-
-    # Cross-chain swap: "bridge 50 FLR to ethereum for ETH"
-    bridge_match = re.search(r'bridge\s+(\d+(?:\.\d+)?)\s+(\w+)\s+to\s+(\w+)(?:\s+for\s+(\w+))?', message)
-    if bridge_match:
-        amount = float(bridge_match.group(1))
-        from_token = bridge_match.group(2).upper()
-        destination_chain = bridge_match.group(3).lower()
-        to_token = bridge_match.group(4).upper() if bridge_match.group(4) else from_token
-        #return execute_cross_chain_command(from_token, amount, destination_chain, to_token)
-        return "Cross-chain swaps are not implemented yet", None
-
-    # Add liquidity: "add liquidity 100 FLR 200 WFLR"
-    liquidity_match = re.search(r'add\s+liquidity\s+(\d+(?:\.\d+)?)\s+(\w+)\s+(\d+(?:\.\d+)?)\s+(\w+)', message)
-    if liquidity_match:
-        amount_a = float(liquidity_match.group(1))
-        token_a = liquidity_match.group(2).upper()
-        amount_b = float(liquidity_match.group(3))
-        token_b = liquidity_match.group(4).upper()
-        #return execute_add_liquidity_command(token_a, token_b, amount_a, amount_b)
-        return "Adding liquidity is not implemented yet", None
-
-    # Wrap tokens: "wrap 500 FLR" or "unwrap 300 WFLR"
-    wrap_match = re.search(r'(wrap|unwrap)\s+(\d+(?:\.\d+)?)\s+(\w+)', message)
-    if wrap_match:
-        action = wrap_match.group(1)
-        amount = float(wrap_match.group(2))
-        token = wrap_match.group(3).upper()
-
-        if action == 'wrap' and token == 'FLR':
-            #return execute_dex_swap_command('FLR', 'WFLR', amount, use_oneinch=False)
-            result = execute_mock_trade('swap', 'WFLR', amount, 'FLR')
-            if result['success']:
-                return f"🔄 Successfully wrapped {amount} FLR to WFLR! Wrapped tokens are now in your portfolio.", f"Wrapped {amount} FLR to WFLR"
-            else:
-                return f"❌ {result['message']}", None
-        elif action == 'unwrap' and token == 'WFLR':
-            #return execute_dex_swap_command('WFLR', 'FLR', amount, use_oneinch=False)
-            result = execute_mock_trade('swap', 'FLR', amount, 'WFLR')
-            if result['success']:
-                return f"🔄 Successfully unwrapped {amount} WFLR to FLR! Unwrapped tokens are now in your portfolio.", f"Unwrapped {amount} WFLR to FLR"
-            else:
-                return f"❌ {result['message']}", None
+Would you like me to execute this cross-chain swap? Just say "execute" or "confirm"!"""
+        
+        return response, f"Cross-chain quote: {amount} {from_token} to {to_token}"
+    
+    # Check for cross-chain quote requests
+    quote_match = re.search(cross_chain_quote_pattern, message)
+    if quote_match:
+        amount = float(quote_match.group(1))
+        from_token = quote_match.group(2).upper()
+        from_chain = quote_match.group(3) or 'flare'
+        to_chain = quote_match.group(4).lower()
+        
+        blockchain_service = get_blockchain_service()
+        quote = blockchain_service.get_cross_chain_quote(from_chain, to_chain, from_token, from_token, amount)
+        
+        if 'error' not in quote:
+            return f"💰 Cross-chain transfer quote: {amount} {from_token} from {from_chain} to {to_chain} will cost ${quote['total_fee_usd']:.2f} in fees and take approximately {quote['estimated_time']}.", None
         else:
-            return f"❌ Invalid wrap command. Use 'wrap [amount] FLR' or 'unwrap [amount] WFLR'", None
-
-    # Trading commands (existing)
-    # Buy command: "buy 100 WFLR"
-    buy_match = re.search(r'buy\s+(\d+(?:\.\d+)?)\s+(\w+)', message)
+            return f"❌ Unable to get quote: {quote['error']}", None
+    
+    # Enhanced buy command with chain support
+    buy_match = re.search(buy_pattern, message)
     if buy_match:
         amount = float(buy_match.group(1))
         token = buy_match.group(2).upper()
-        #return execute_trade_command('buy', token, amount)
-        result = execute_mock_trade('buy', token, amount)
-
+        payment_token = buy_match.group(3).upper() if buy_match.group(3) else None
+        chain = buy_match.group(4).lower() if buy_match.group(4) else 'flare'
+        
+        if chain != 'flare':
+            return f"🔗 I can help you buy {token} on {chain.title()}! However, cross-chain purchases require connecting to that network. For now, I'll execute this on Flare Network. Use 'bridge' commands for cross-chain transfers.", None
+        
+        result = execute_mock_trade('buy', token, amount, payment_token)
+        
         if result['success']:
-            return result['message'], f"Bought {amount} {token}"
-        else:
-            return f"❌ {result['message']}", None
+            return f"""✅ **Purchase Successful!** 
 
-    # Sell command: "sell 50 ETH"
-    sell_match = re.search(r'sell\s+(\d+(?:\.\d+)?)\s+(\w+)', message)
+Bought **{amount} {token}** for ${amount * Token.query.filter_by(symbol=token).first().price:.2f}! 🎉
+
+Your new {token} tokens are now safely in your portfolio. Want to see your updated balance? Just ask me "show balance"!""", f"Bought {amount} {token}"
+        else:
+            return f"❌ Purchase failed: {result['message']} 😔 Don't worry though, try adjusting the amount or check your balance!", None
+    
+    # Enhanced sell command
+    sell_match = re.search(sell_pattern, message)
     if sell_match:
         amount = float(sell_match.group(1))
         token = sell_match.group(2).upper()
-        #return execute_trade_command('sell', token, amount)
+        chain = sell_match.group(3).lower() if sell_match.group(3) else 'flare'
+        
         result = execute_mock_trade('sell', token, amount)
-
+        
         if result['success']:
-            return result['message'], f"Sold {amount} {token}"
-        else:
-            return f"❌ {result['message']}", None
+            return f"""💰 **Sale Completed!**
 
-    # Swap command: "swap 100 USDT for WFLR"
-    swap_match = re.search(r'swap\s+(\d+(?:\.\d+)?)\s+(\w+)\s+for\s+(\w+)', message)
+Successfully sold **{amount} {token}** for ${amount * Token.query.filter_by(symbol=token).first().price:.2f}! 
+
+The funds have been added to your account. Great timing on that trade! 📈""", f"Sold {amount} {token}"
+        else:
+            return f"❌ Sale failed: {result['message']} 😕 This might be due to insufficient balance or market conditions.", None
+    
+    # Enhanced swap command
+    swap_match = re.search(swap_pattern, message)
     if swap_match:
         amount = float(swap_match.group(1))
         from_token = swap_match.group(2).upper()
-        to_token = swap_match.group(3).upper()
-        #return execute_trade_command('swap', to_token, amount, from_token)
+        to_token = swap_match.group(3).upper() 
+        chain = swap_match.group(4).lower() if swap_match.group(4) else 'flare'
+        
         result = execute_mock_trade('swap', to_token, amount, from_token)
-
+        
         if result['success']:
-            return result['message'], f"Swapped {amount} {from_token} for {to_token}"
+            return f"""🔄 **Swap Executed Successfully!**
+
+Swapped **{amount} {from_token}** → **{to_token}** on {chain.title()} Network! 
+
+This was a smart move! The swap has been completed and your new tokens are ready. Want to see how this affected your portfolio? 📊""", f"Swapped {amount} {from_token} for {to_token}"
         else:
-            return f"❌ {result['message']}", None
+            return f"❌ Swap failed: {result['message']} 🤔 This could be due to insufficient liquidity or balance issues.", None
+    
+    # Enhanced wrap/unwrap
+    wrap_match = re.search(wrap_pattern, message)
+    if wrap_match:
+        amount = float(wrap_match.group(1))
+        from_token = wrap_match.group(2).upper()
+        to_token = wrap_match.group(3).upper() if wrap_match.group(3) else ('WFLR' if from_token == 'FLR' else 'FLR')
+        
+        if (from_token == 'FLR' and to_token == 'WFLR') or (from_token == 'WFLR' and to_token == 'FLR'):
+            result = execute_mock_trade('swap', to_token, amount, from_token)
+            if result['success']:
+                action = "Wrapped" if to_token == 'WFLR' else "Unwrapped"
+                return f"""🔄 **{action} Successfully!**
 
-    # Default response with suggestions
-    #return get_default_response(), None
-    # Enhanced conversational responses for unrecognized input
-    conversational_responses = [
-        "I'm not sure I understood that. Could you try asking in a different way? For example, 'buy 100 WFLR' or 'what's the price of ETH?'",
-        "Hmm, I didn't catch that. I can help you trade, check prices, or view your portfolio. What would you like to do?",
-        "I'm here to help with trading on Flare Network! Try asking me about token prices, making trades, or checking your balance.",
-        "That's a bit unclear to me. I understand commands like 'buy tokens', 'check prices', or 'show portfolio'. What can I help you with?",
-        "I'd love to help, but I'm not sure what you're asking for. Try something like 'buy 50 WFLR' or 'what tokens are available?'"
-    ]
+{action} **{amount} {from_token}** to **{to_token}**! 
 
-    import random
-    return random.choice(conversational_responses), None
-
-def execute_dex_swap_command(from_token, to_token, amount, use_oneinch=False):
-    """Execute DEX swap via smart contract"""
-    try:
-        #wallet_service = get_wallet_service()
-        #if not wallet_service.is_wallet_connected():
-        #    return "🔗 Please connect your wallet first to use DEX features!", None
-
-        #blockchain_service = get_blockchain_service()
-        #wallet_address = wallet_service.get_connected_wallet()
-
-        #success, message = blockchain_service.execute_dex_swap(
-        #    from_token, to_token, amount, wallet_address, use_oneinch
-        #)
-        success = True
-        message = f"Swapped {amount} {from_token} for {to_token}"
-
-        if success:
-            trade_info = {
-                'type': 'dex_swap',
-                'from_token': from_token,
-                'to_token': to_token,
-                'amount': amount,
-                'onchain': True,
-                'use_oneinch': use_oneinch
-            }
-
-            aggregator = " via 1inch" if use_oneinch else " via internal DEX"
-            return f"🔥 {message}{aggregator}\n\n💡 Sign the transaction in your wallet to complete the swap!", trade_info
+Your {to_token} tokens are now ready for DeFi protocols! Wrapping/unwrapping is essential for participating in the DeFi ecosystem. 🌟""", f"{action} {amount} {from_token} to {to_token}"
+            else:
+                return f"❌ {result['message']} 😞", None
         else:
-            return f"❌ DEX swap failed: {message}", None
-
-    except Exception as e:
-        return f"❌ DEX swap error: {str(e)}", None
-
-def execute_cross_chain_command(from_token, amount, destination_chain, to_token):
-    """Execute cross-chain swap via bridge"""
-    try:
-        #wallet_service = get_wallet_service()
-        #if not wallet_service.is_wallet_connected():
-        #    return "🔗 Please connect your wallet first to use cross-chain features!", None
-
-        #blockchain_service = get_blockchain_service()
-        #wallet_address = wallet_service.get_connected_wallet()
-
-        #success, message = blockchain_service.execute_cross_chain_swap(
-        #    from_token, amount, destination_chain, to_token, wallet_address, wallet_address
-        #)
-        success = True
-        message = f"Bridged {amount} {from_token} to {destination_chain} for {to_token}"
-
-        if success:
-            trade_info = {
-                'type': 'cross_chain_swap',
-                'from_token': from_token,
-                'to_token': to_token,
-                'amount': amount,
-                'destination_chain': destination_chain,
-                'onchain': True
-            }
-
-            return f"🌉 {message}\n\n💡 Sign the transaction to bridge {amount} {from_token} to {destination_chain}!", trade_info
-        else:
-            return f"❌ Cross-chain swap failed: {message}", None
-
-    except Exception as e:
-        return f"❌ Cross-chain error: {str(e)}", None
-
-def execute_add_liquidity_command(token_a, token_b, amount_a, amount_b):
-    """Add liquidity to trading pair"""
-    try:
-        #wallet_service = get_wallet_service()
-        #if not wallet_service.is_wallet_connected():
-        #    return "🔗 Please connect your wallet first to add liquidity!", None
-
-        #blockchain_service = get_blockchain_service()
-        #wallet_address = wallet_service.get_connected_wallet()
-
-        #success, message = blockchain_service.add_liquidity(
-        #    token_a, token_b, amount_a, amount_b, wallet_address
-        #)
-        success = True
-        message = f"Added {amount_a} {token_a} and {amount_b} {token_b} to liquidity pool."
-
-        if success:
-            trade_info = {
-                'type': 'add_liquidity',
-                'token_a': token_a,
-                'token_b': token_b,
-                'amount_a': amount_a,
-                'amount_b': amount_b,
-                'onchain': True
-            }
-
-            return f"💧 {message}\n\n💡 Sign the transaction to provide liquidity to the {token_a}/{token_b} pool!", trade_info
-        else:
-            return f"❌ Add liquidity failed: {message}", None
-
-    except Exception as e:
-        return f"❌ Liquidity error: {str(e)}", None
-def get_help_response():
-    """Return help message with available commands including DEX features"""
-    return """🤖 **Flare Trading Bot Commands:**
-
-📈 **Basic Trading:**
-• `buy [amount] [token]` - Buy tokens (e.g., "buy 100 WFLR")
-• `sell [amount] [token]` - Sell tokens (e.g., "sell 50 ETH")
-• `swap [amount] [from] for [to]` - Swap tokens (e.g., "swap 100 USDT for WFLR")
-
-🔥 **DEX Features:**
-• `swap [amount] [from] for [to] using 1inch` - Use 1inch aggregator for best rates
-• `wrap [amount] FLR` - Convert FLR to WFLR
-• `unwrap [amount] WFLR` - Convert WFLR to FLR
-• `bridge [amount] [token] to [chain]` - Cross-chain swaps
-• `add liquidity [amount1] [token1] [amount2] [token2]` - Provide liquidity
-
-🌉 **Cross-Chain:**
-• `bridge 50 FLR to ethereum` - Bridge assets to other chains
-• Supported chains: ethereum, polygon, arbitrum, optimism
-
-💰 **Information:**
-• `price [token]` - Get current price (e.g., "price WFLR")
-• `balance` - View your portfolio
-• `help` - Show this help message
-
-🔥 **Supported Tokens:**
-FLR, WFLR, ETH, MATIC, METIS, APE, USDT
-
-💡 **Pro Tips:**
-- Connect your wallet for real onchain trading
-- Use "using 1inch" for better swap rates
-- Commands are case-insensitive
-- Ask "What's the best rate for swapping FLR to ETH?"
-
-🔗 **Getting Started:**
-1. Connect your MetaMask wallet
-2. Ensure you're on Flare Network (Chain ID: 14)
-3. Start trading with natural language commands!"""
-
-def get_default_response():
-    """Return a default response with suggestions"""
-    return "Sorry, I didn't understand that. Try 'help' for available commands."
-
-def get_price_response(token_symbol):
-    """Return price information for a token"""
-    token = Token.query.filter_by(symbol=token_symbol).first()
-
-    if token:
-        change_emoji = "📈" if token.change_24h >= 0 else "📉"
-        return f"💰 {token.name} ({token.symbol}): ${token.price:.6f} {change_emoji} {token.change_24h:+.2f}% (24h)", None
-    else:
-        return f"❌ Token {token_symbol} not found. Supported tokens: WFLR, FLR, MATIC, METIS, USDT, ETH, APE", None
-
-def get_portfolio_response():
-    """Return portfolio information"""
-    from models import Portfolio
-    portfolio_items = Portfolio.query.filter(Portfolio.balance > 0).all()
-
-    if not portfolio_items:
-        return "📊 Your portfolio is empty. Start trading to build your holdings!", None
-
-    portfolio_text = "📊 Your Portfolio:\n"
-    total_value = 0
-
-    for item in portfolio_items:
-        token = Token.query.filter_by(symbol=item.token_symbol).first()
+            return f"❌ I can only wrap/unwrap between FLR and WFLR tokens. These are 1:1 conversions that make FLR compatible with DeFi protocols! 🔧", None
+    
+    # Enhanced price queries
+    price_match = re.search(price_pattern, message)
+    if price_match:
+        token_symbol = price_match.group(1).upper()
+        chain = price_match.group(2).lower() if price_match.group(2) else 'flare'
+        token = Token.query.filter_by(symbol=token_symbol).first()
+        
         if token:
-            value = item.balance * token.price
-            total_value += value
-            portfolio_text += f"• {item.balance:.4f} {item.token_symbol} = ${value:.2f}\n"
+            change_emoji = "📈" if token.change_24h >= 0 else "📉"
+            trend = "bullish" if token.change_24h > 2 else "bearish" if token.change_24h < -2 else "stable"
+            
+            return f"""💰 **{token.name} ({token.symbol}) Price:**
 
-    portfolio_text += f"\n💎 Total Value: ${total_value:.2f}"
-    return portfolio_text, None
+**${token.price:.6f}** {change_emoji} **{token.change_24h:+.2f}%** (24h)
 
-def execute_trade_command(trade_type, token, amount, from_token=None):
-    """Execute basic trade command (buy, sell, swap)"""
-    result = execute_mock_trade(trade_type, token, amount, from_token)
+The market is looking **{trend}** for {token.symbol} right now! {
+    "Great time to buy the dip! 🎯" if token.change_24h < -5 else 
+    "Nice gains! 🚀" if token.change_24h > 5 else 
+    "Steady as she goes! ⚖️"
+}
 
-    if result['success']:
-        if trade_type == 'buy':
-            return result['message'], f"Bought {amount} {token}"
-        elif trade_type == 'sell':
-            return result['message'], f"Sold {amount} {token}"
-        elif trade_type == 'swap':
-            return result['message'], f"Swapped {amount} {from_token} for {token}"
-    else:
-        return f"❌ {result['message']}", None
+Want to make a trade? Just tell me what you'd like to do!""", None
+        else:
+            return f"""❌ **Token {token_symbol} not found!** 🤔
 
-    # Check for general market/token info requests
-    if any(word in message for word in ['market', 'tokens', 'supported', 'available']):
-        return """📊 **Supported Tokens on Flare Network:**
+**Supported tokens:** WFLR, FLR, MATIC, METIS, USDT, ETH, APE
 
-**Core Flare Tokens:**
-• FLR - Native Flare token
-• WFLR - Wrapped Flare (for DeFi)
+Try asking about one of these, or let me know if you'd like me to add support for more tokens! I'm always learning! 🧠✨""", None
+    
+    # Enhanced balance/portfolio query
+    if re.search(balance_pattern, message):
+        from models import Portfolio
+        portfolio_items = Portfolio.query.filter(Portfolio.balance > 0).all()
+        
+        if not portfolio_items:
+            return """📊 **Your Portfolio**
 
-**Multi-Chain Assets:**
-• ETH - Ethereum 
-• MATIC - Polygon
-• METIS - Metis
-• APE - ApeCoin
-• USDT - Tether USD (stablecoin)
+Your portfolio is currently empty! 💼✨
 
-All tokens are available for trading via buy/sell/swap commands. Use 'wrap FLR' to convert to WFLR for DeFi protocols.""", None
+**Ready to start trading?** Here are some ideas:
+• Buy some WFLR to get started
+• Try "buy 100 WFLR" 
+• Ask me "what tokens can I trade?"
 
-    # Enhanced conversational patterns for questions
-    if any(phrase in message for phrase in ['how do', 'what can', 'tell me about', 'explain', 'how does']):
-        if 'work' in message or 'trading' in message:
-            return """I'm your conversational AI assistant for trading on Flare Network! Here's how we can work together:
+I'm here to help you build an amazing portfolio! 🌟""", None
+        
+        portfolio_text = "📊 **Your Portfolio:**\n\n"
+        total_value = 0
+        best_performer = None
+        best_performance = -float('inf')
+        
+        for item in portfolio_items:
+            token = Token.query.filter_by(symbol=item.token_symbol).first()
+            if token:
+                value = item.balance * token.price
+                total_value += value
+                profit_loss = value - (item.balance * item.avg_buy_price)
+                pl_percent = (profit_loss / (item.balance * item.avg_buy_price) * 100) if item.avg_buy_price > 0 else 0
+                
+                if pl_percent > best_performance:
+                    best_performance = pl_percent
+                    best_performer = token.symbol
+                
+                emoji = "📈" if pl_percent > 0 else "📉" if pl_percent < 0 else "➡️"
+                portfolio_text += f"• **{item.balance:.4f} {item.token_symbol}** = ${value:.2f} {emoji} {pl_percent:+.1f}%\n"
+        
+        portfolio_text += f"\n💎 **Total Value: ${total_value:.2f}**"
+        
+        if best_performer:
+            portfolio_text += f"\n🏆 **Best Performer: {best_performer}** (+{best_performance:.1f}%)"
+        
+        portfolio_text += f"\n\n{'🎉 Great portfolio! Keep up the good work!' if total_value > 1000 else '📈 Nice start! Ready to grow this portfolio?'}"
+        
+        return portfolio_text, None
+    
+    # Gas and fee information
+    gas_match = re.search(gas_pattern, message)
+    if gas_match:
+        chain = gas_match.group(1).lower()
+        chain_aliases = {'eth': 'ethereum', 'matic': 'polygon', 'bnb': 'bsc'}
+        chain = chain_aliases.get(chain, chain)
+        
+        gas_info = {
+            'ethereum': {'cost': '$20-80', 'speed': 'Fast', 'note': 'High but secure'},
+            'flare': {'cost': '$0.01-0.10', 'speed': 'Very Fast', 'note': 'Ultra-low fees!'},
+            'polygon': {'cost': '$0.001-0.01', 'speed': 'Fast', 'note': 'Great for small trades'},
+            'bsc': {'cost': '$0.10-0.50', 'speed': 'Fast', 'note': 'Good middle ground'}
+        }
+        
+        info = gas_info.get(chain)
+        if info:
+            return f"""⛽ **Gas Fees on {chain.title()}:**
 
-**Natural Trading:**
-Just tell me what you want to do naturally:
-• "I want to buy 100 WFLR" or simply "buy 100 WFLR"
-• "Can you sell 50 ETH for me?" or "sell 50 ETH"
-• "Swap some USDT for WFLR" or "exchange 100 USDT for WFLR"
+💰 **Cost:** {info['cost']}
+⚡ **Speed:** {info['speed']}
+📝 **Note:** {info['note']}
 
-**Ask Questions:**
-• "What's the current price of ETH?"
-• "Show me my portfolio"
-• "What tokens can I trade here?"
+{f"Flare Network offers some of the lowest fees in crypto! Perfect for frequent trading. 🎯" if chain == 'flare' else f"Consider using Flare Network for lower fees when possible!"}""", None
+    
+    # Supported chains info
+    if re.search(chains_pattern, message):
+        return """🌐 **Supported Networks & Features:**
 
-**Learn More:**
-• "Tell me about Flare Network"
-• "How does wrapping work?"
+**🔥 Flare Network** (Primary)
+• Native FLR & WFLR tokens
+• Ultra-low gas fees ($0.01)
+• FTSO price oracles
+• ⭐ Best for: All trading activities
 
-I understand context and can have real conversations about your trades and the crypto market. No need for exact commands - just chat naturally!""", None
+**🔗 Cross-Chain Support:**
+• **Ethereum** - Premium DeFi hub
+• **Polygon** - Fast & cheap L2
+• **BSC** - Binance ecosystem  
+• **Avalanche** - High throughput
 
-    # Check for token information requests
-    if any(phrase in message for phrase in ['tell me about', 'what is', 'explain']) and any(token in message for token in ['flr', 'wflr', 'eth', 'matic', 'metis', 'usdt', 'ape']):
-        return """I'd be happy to explain about these tokens! Here's what's available on Flare Network:
+**🌉 Bridge Features:**
+• LayerZero integration
+• 1inch aggregator
+• Native Flare bridges
+• Real-time fee estimation
 
-**FLR & WFLR:** FLR is Flare's native token. WFLR is the wrapped version used in DeFi protocols. You can wrap/unwrap between them anytime.
+Want to try a cross-chain swap? Just say something like "bridge 100 USDT to Ethereum"! 🚀""", None
+    
+    # Greeting responses
+    if re.search(greeting_pattern, message):
+        greetings = [
+            "Hello there! 👋 I'm your friendly Flare Network trading assistant! Ready to explore some DeFi magic? ✨",
+            "Hey! 🌟 Great to see you! I'm here to help you navigate the exciting world of cross-chain trading on Flare Network!",
+            "Hi! 😊 Welcome back to your trading companion! What amazing trades shall we execute today?",
+            "Greetings, trader! 🚀 I'm pumped to help you make some profitable moves in the crypto markets today!"
+        ]
+        import random
+        return random.choice(greetings), None
+    
+    # Thanks responses
+    if re.search(thanks_pattern, message):
+        thanks_responses = [
+            "You're absolutely welcome! 😊 Happy to help you succeed in crypto trading! 🎯",
+            "Anytime! 🌟 That's what I'm here for - making crypto trading easier and more fun!",
+            "My pleasure! 💫 Keep those successful trades coming! 📈",
+            "Glad I could help! 🤝 Remember, I'm always here when you need trading assistance!"
+        ]
+        import random
+        return random.choice(thanks_responses), None
+    
+    # Help and capabilities
+    if re.search(help_pattern, message):
+        return """🤖 **Your AI Trading Assistant - Full Capabilities!**
 
-**ETH:** Ethereum bridged to Flare Network for lower fees and faster transactions.
+**💰 Basic Trading:**
+• `buy 100 WFLR` - Purchase tokens
+• `sell 50 ETH` - Sell tokens  
+• `swap 100 USDT for WFLR` - Token swaps
+• `wrap 200 FLR to WFLR` - Wrap/unwrap
 
-**MATIC:** Polygon's native token, available for cross-chain trading.
+**🌉 Cross-Chain Trading:**
+• `bridge 50 USDT to Ethereum` - Cross-chain transfers
+• `quote 100 FLR to Polygon` - Get bridge quotes
+• `swap 10 ETH on Ethereum` - Chain-specific trades
 
-**METIS:** From the Metis ecosystem, offering DeFi opportunities on Flare.
+**📊 Information & Analysis:**
+• `price of ETH` - Real-time prices
+• `balance` - Portfolio overview
+• `gas fees on Ethereum` - Fee estimates
+• `supported chains` - Available networks
 
-**USDT:** The popular stablecoin for stable value trading.
+**🤖 I'm Conversational!**
+I understand natural language, so you can ask me anything like:
+• "What's the best way to get USDT on Polygon?"
+• "How much would it cost to bridge 500 WFLR to Ethereum?"
+• "Show me my portfolio performance"
 
-**APE:** ApeCoin from the Bored Ape ecosystem.
+**🎯 Pro Tips:**
+• I provide real-time quotes with fees
+• I suggest optimal routes for trades
+• I track your portfolio automatically
+• I'm always learning and improving!
 
-All are tradeable with real-time pricing from Flare's FTSO oracles. What would you like to know more about?""", None
+Ready to make some profitable trades? 🚀""", None
+    
+    # Market and general crypto questions
+    if any(word in message for word in ['market', 'defi', 'crypto', 'blockchain', 'flare', 'oracle']):
+        if 'flare' in message or 'ftso' in message or 'oracle' in message:
+            return """🔥 **Flare Network - The Oracle Blockchain!**
 
-    # Enhanced conversational responses for unrecognized input
+**What makes Flare special:**
+• **FTSO Oracles** - Decentralized price feeds without external dependencies
+• **Ultra-low fees** - Trade for pennies, not dollars!
+• **EVM Compatible** - All your favorite DeFi tools work here
+• **State Connectors** - Prove events from other blockchains
+
+**Why Trade on Flare:**
+• 📊 **Accurate Prices** - Real-time data from FTSO oracles
+• ⚡ **Lightning Fast** - 1-2 second block times
+• 💰 **Cost Effective** - $0.01 average transaction cost
+• 🌉 **Cross-Chain Ready** - Built for multi-chain DeFi
+
+**Available Assets:**
+• FLR (native token) & WFLR (wrapped for DeFi)
+• Bridged ETH, USDT, and other major tokens
+• Growing ecosystem of native tokens
+
+Ready to experience the future of DeFi on Flare? Let's start trading! 🚀""", None
+        
+        elif 'market' in message:
+            return """📈 **Crypto Market Insights**
+
+I'm constantly monitoring prices across all supported networks! Here's what I can help you with:
+
+• **Real-time prices** from multiple sources
+• **Cross-chain arbitrage** opportunities  
+• **Gas fee optimization** across networks
+• **Portfolio tracking** and performance analysis
+
+**Current Focus Areas:**
+• Flare Network native tokens (FLR/WFLR)
+• Major DeFi tokens (ETH, USDT, USDC)
+• Cross-chain bridge opportunities
+
+Want to see specific market data? Just ask me about any token price or market conditions! 📊✨""", None
+    
+    # Advanced features and trading tips
+    if any(phrase in message for phrase in ['advanced', 'tips', 'strategy', 'optimize', 'best']):
+        return """🎯 **Advanced Trading Tips & Strategies**
+
+**🔥 Flare Network Advantages:**
+• Use FTSO oracles for the most accurate pricing
+• Take advantage of ultra-low fees for frequent trading
+• Bridge assets during low-traffic periods for better rates
+
+**💡 Cross-Chain Optimization:**
+• **Small trades (<$100):** Use Polygon or BSC for low fees
+• **Large trades (>$10k):** Prefer Ethereum for maximum security
+• **DeFi activities:** Flare Network for best fee/security balance
+
+**⚡ Gas Fee Strategies:**
+• Monitor gas prices and trade during low-traffic hours
+• Batch multiple operations when possible
+• Use Layer 2 solutions for cost savings
+
+**🎨 Portfolio Tips:**
+• Diversify across chains and tokens
+• Keep some stablecoins for opportunities
+• Use wrapping/unwrapping strategically for DeFi access
+
+**🌉 Bridge Timing:**
+• Check multiple routes for best rates
+• Consider time vs. cost trade-offs
+• Monitor bridge liquidity before large transfers
+
+Want specific advice for your situation? Just tell me about your trading goals! 🚀""", None
+    
+    # Fallback conversational responses
     conversational_responses = [
-        "I'm not sure I understood that. Could you try asking in a different way? For example, 'buy 100 WFLR' or 'what's the price of ETH?'",
-        "Hmm, I didn't catch that. I can help you trade, check prices, or view your portfolio. What would you like to do?",
-        "I'm here to help with trading on Flare Network! Try asking me about token prices, making trades, or checking your balance.",
-        "That's a bit unclear to me. I understand commands like 'buy tokens', 'check prices', or 'show portfolio'. What can I help you with?",
-        "I'd love to help, but I'm not sure what you're asking for. Try something like 'buy 50 WFLR' or 'what tokens are available?'"
+        "I'd love to help you with that! 😊 Could you be more specific? For example, try asking about token prices, executing trades, or checking your portfolio!",
+        "Hmm, I'm not quite sure what you're looking for there! 🤔 I'm great at helping with trading, prices, cross-chain swaps, and portfolio management. What would you like to explore?",
+        "That's interesting! 💭 I'm specialized in crypto trading and cross-chain operations. Try asking me about buying tokens, checking prices, or bridging assets between chains!",
+        "I want to help! 🌟 I understand trading commands, price queries, portfolio questions, and cross-chain operations. What crypto adventure shall we embark on?",
+        "Great question! 🎯 I'm your DeFi trading companion. Ask me about token swaps, cross-chain bridges, gas fees, or anything related to trading on Flare Network and beyond!"
     ]
-
+    
     import random
     return random.choice(conversational_responses), None
