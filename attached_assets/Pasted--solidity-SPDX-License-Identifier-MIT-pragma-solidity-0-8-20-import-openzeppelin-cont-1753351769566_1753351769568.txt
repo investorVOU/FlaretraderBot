@@ -1,0 +1,308 @@
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@flarenetwork/flare-periphery-contracts/flare/ContractRegistry.sol";
+import "@flarenetwork/flare-periphery-contracts/flare/FtsoV2Interface.sol";
+
+// Interface for WFLR wrapping/unwrapping
+interface IWFLR {
+    function wrap(uint256 amount) external;
+    function unwrap(uint256 amount) external;
+    function transfer(address recipient, uint256 amount) external returns (bool);
+}
+
+// Interface for cross-chain bridge (e.g., LayerZero)
+interface ICrossChainBridge {
+    function bridgeAsset(address token, uint256 amount, string calldata destinationChain, address recipient) external;
+}
+
+// Interface for 1inch aggregator (simplified)
+interface IOneInchRouter {
+    function swap(
+        address caller,
+        address srcToken,
+        address dstToken,
+        uint256 amount,
+        uint256 minReturn,
+        bytes calldata data
+    ) external returns (uint256 returnAmount);
+}
+
+contract FlareCrossChainDEX is Ownable {
+    // State variables
+    mapping(address => mapping(address => uint256)) public liquidityPools;
+    mapping(address => uint256) public rewards;
+    IERC20 public flrToken;
+    IWFLR public wflrToken;
+    ICrossChainBridge public bridge;
+    IOneInchRouter public oneInchRouter; // 1inch aggregator
+    FtsoV2Interface public ftsoV2;
+    uint256 public constant FEE = 30; // 0.3% fee (in basis points)
+    uint256 public constant REWARD_RATE = 1e18; // Reward rate per block
+
+    // Events
+    event Swap(address indexed user, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event CrossChainSwap(address indexed user, address tokenIn, uint256 amountIn, string destinationChain, address tokenOut);
+    event LiquidityAdded(address indexed provider, address tokenA, address tokenB, uint256 amountA, uint256 amountB);
+
+    constructor(address _flrToken, address _wflrToken, address _bridge, address _oneInchRouter) Ownable(msg.sender) {
+        flrToken = IERC20(_flrToken);
+        wflrToken = IWFLR(_wflrToken);
+        bridge = ICrossChainBridge(_bridge);
+        oneInchRouter = IOneInchRouter(_oneInchRouter);
+        ftsoV2 = ContractRegistry.getFtsoV2();
+    }
+
+    // Buy/Sell tokens using internal liquidity pool
+    function swap(address tokenIn, address tokenOut, uint256 amountIn) external returns (uint256 amountOut) {
+        require(liquidityPools[tokenIn][tokenOut] > 0, "No liquidity pool");
+        (uint256 price, int8 decimals,) = ftsoV2.getFeedById(getPriceFeedId(tokenIn, tokenOut));
+        amountOut = (amountIn * price) / (10 ** uint8(decimals));
+        uint256 fee = (amountOut * FEE) / 10000;
+        amountOut -= fee;
+
+        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "TokenIn transfer failed");
+        require(IERC20(tokenOut).transfer(msg.sender, amountOut), "TokenOut transfer failed");
+        liquidityPools[tokenIn][tokenOut] += amountIn;
+        liquidityPools[tokenOut][tokenIn] -= amountOut;
+        emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
+        return amountOut;
+    }
+
+    // Buy/Sell tokens using 1inch aggregator
+    function swapWithOneInch(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minReturn,
+        bytes calldata oneInchData
+    ) external returns (uint256 amountOut) {
+        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "TokenIn transfer failed");
+        require(IERC20(tokenIn).approve(address(oneInchRouter), amountIn), "Approval failed");
+        amountOut = oneInchRouter.swap(msg.sender, tokenIn, tokenOut, amountIn, minReturn, oneInchData);
+        require(IERC20(tokenOut).transfer(msg.sender, amountOut), "TokenOut transfer failed");
+        emit Swap(msg.sender, tokenIn, tokenOut, amountIn, amountOut);
+        return amountOut;
+    }
+
+    // Cross-chain swap via bridge
+    function crossChainSwap(
+        address tokenIn,
+        uint256 amountIn,
+        string calldata destinationChain,
+        address tokenOut,
+        address recipient
+    ) external {
+        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "TokenIn transfer failed");
+        bridge.bridgeAsset(tokenIn, amountIn, destinationChain, recipient);
+        emit CrossChainSwap(msg.sender, tokenIn, amountIn, destinationChain, tokenOut);
+    }
+
+    // FLR to WFLR swap
+    function swapFLRtoWFLR(uint256 amount) external {
+        require(flrToken.transferFrom(msg.sender, address(this), amount), "FLR transfer failed");
+        wflrToken.wrap(amount);
+        require(wflrToken.transfer(msg.sender, amount), "WFLR transfer failed");
+        emit Swap(msg.sender, address(flrToken), address(wflrToken), amount, amount);
+    }
+
+    // Add liquidity to a pool
+    function addLiquidity(address tokenA, address tokenB, uint256 amountA, uint256 amountB) external {
+        require(IERC20(tokenA).transferFrom(msg.sender, address(this), amountA), "TokenA transfer failed");
+        require(IERC20(tokenB).transferFrom(msg.sender, address(this), amountB), "TokenB transfer failed");
+        liquidityPools[tokenA][tokenB] += amountA;
+        liquidityPools[tokenB][tokenA] += amountB;
+        emit LiquidityAdded(msg.sender, tokenA, tokenB, amountA, amountB);
+    }
+
+    // Placeholder for price feed ID
+    function getPriceFeedId(address tokenIn, address tokenOut) private pure returns (bytes21) {
+        return 0x01464c522f55534400000000000000000000000000; // Example FLR/USD
+    }
+}
+```
+
+#### 3. Front-End Integration
+Your React.js front-end needs to connect to your smart contract and the external DEX/aggregator to facilitate buying and selling tokens. Here’s how to set it up:
+
+- **Setup**:
+  - Use a Replit project with React.js and Tailwind CSS.
+  - Install dependencies: `ethers`, `axios`, `react-router-dom`, `tailwindcss`.
+  - Configure ethers.js to connect to Flare mainnet (`https://flare-api.flare.network/ext/C/rpc`).
+
+- **Swap Interface**:
+  - Create a `Swap.js` component to handle token buying/selling.
+  - Allow users to select token pairs (e.g., FLR/ETH, FLR/WFLR) and input amounts.
+  - Provide options to use:
+    - **Internal Liquidity**: Call the `swap` function in your contract for FLR/WFLR or other local pools.
+    - **1inch Aggregator**: Fetch swap data from 1inch’s API and call `swapWithOneInch`.
+    - **Cross-Chain Swap**: Call `crossChainSwap` for bridging to other chains.
+  - Example React component:
+    ```jsx
+    import { ethers } from 'ethers';
+    import { useState } from 'react';
+    import axios from 'axios';
+
+    const Swap = () => {
+      const [tokenIn, setTokenIn] = useState('FLR');
+      const [tokenOut, setTokenOut] = useState('WFLR');
+      const [amountIn, setAmountIn] = useState('');
+      const [useOneInch, setUseOneInch] = useState(false);
+
+      const swapTokens = async () => {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract('YOUR_CONTRACT_ADDRESS', ABI, signer);
+
+        if (tokenIn === 'FLR' && tokenOut === 'WFLR') {
+          const tx = await contract.swapFLRtoWFLR(ethers.parseUnits(amountIn, 18));
+          await tx.wait();
+          alert('Swap successful!');
+        } else if (useOneInch) {
+          const { data } = await axios.get('https://api.1inch.io/v5.0/114/swap', {
+            params: {
+              fromTokenAddress: 'TOKEN_IN_ADDRESS',
+              toTokenAddress: 'TOKEN_OUT_ADDRESS',
+              amount: ethers.parseUnits(amountIn, 18).toString(),
+              fromAddress: signer.address,
+              slippage: 1,
+            },
+          });
+          const tx = await contract.swapWithOneInch(
+            'TOKEN_IN_ADDRESS',
+            'TOKEN_OUT_ADDRESS',
+            ethers.parseUnits(amountIn, 18),
+            data.toAmount,
+            data.tx.data
+          );
+          await tx.wait();
+          alert('Swap via 1inch successful!');
+        }
+      };
+
+      return (
+        <div className="p-4">
+          <select onChange={(e) => setTokenIn(e.target.value)}>
+            <option value="FLR">FLR</option>
+            <option value="WFLR">WFLR</option>
+            <option value="ETH">ETH</option>
+          </select>
+          <input
+            type="number"
+            value={amountIn}
+            onChange={(e) => setAmountIn(e.target.value)}
+            placeholder="Amount"
+          />
+          <select onChange={(e) => setTokenOut(e.target.value)}>
+            <option value="WFLR">WFLR</option>
+            <option value="FLR">FLR</option>
+            <option value="ETH">ETH</option>
+          </select>
+          <label>
+            <input
+              type="checkbox"
+              checked={useOneInch}
+              onChange={() => setUseOneInch(!useOneInch)}
+            />
+            Use 1inch Aggregator
+          </label>
+          <button onClick={swapTokens} className="bg-blue-500 text-white p-2">
+            Swap
+          </button>
+        </div>
+      );
+    };
+    export default Swap;
+    ```
+
+- **Cross-Chain Swaps**:
+  - Add a form to specify the destination chain and recipient address.
+  - Call the `crossChainSwap` function with bridge parameters (e.g., LayerZero’s endpoint).
+
+#### 4. Connect to 1inch API for Aggregated Swaps
+- **API Setup**:
+  - Use 1inch’s Swap API (`https://api.1inch.io/v5.0/114/swap` for Flare, chainId 14).
+  - Fetch swap quotes with parameters: `fromTokenAddress`, `toTokenAddress`, `amount`, `fromAddress`, `slippage`.
+  - Example API call:
+    ```javascript
+    const response = await axios.get('https://api.1inch.io/v5.0/114/swap', {
+      params: {
+        fromTokenAddress: '0x...FLR_TOKEN_ADDRESS',
+        toTokenAddress: '0x...WFLR_TOKEN_ADDRESS',
+        amount: ethers.parseUnits('100', 18).toString(),
+        fromAddress: 'USER_ADDRESS',
+        slippage: 1,
+      },
+    });
+    ```
+- **Integration**:
+  - Pass the `data.tx.data` from the 1inch API response to the `swapWithOneInch` function in your contract.
+  - Ensure your contract has approval to spend the user’s tokens.
+
+#### 5. Deploy and Test on Flare Mainnet
+- **Deployment**:
+  - Configure Hardhat for Flare mainnet:
+    ```javascript
+    module.exports = {
+      networks: {
+        flare: {
+          url: 'https://flare-api.flare.network/ext/C/rpc',
+          chainId: 14,
+          accounts: ['YOUR_PRIVATE_KEY'],
+        },
+      },
+      solidity: '0.8.20',
+    };
+    ```
+  - Deploy using Hardhat:
+    ```bash
+    npx hardhat run scripts/deploy.js --network flare
+    ```
+  - Deploy the front-end to IPFS via Fleek for decentralization.
+
+- **Testing**:
+  - Test swaps with small amounts (e.g., 1 FLR to WFLR, 1 FLR to ETH via 1inch).
+  - Verify cross-chain swaps using LayerZero/Wormhole endpoints.
+  - Use Hardhat/Mocha for unit tests:
+    ```javascript
+    const { expect } = require('chai');
+    describe('FlareCrossChainDEX', function () {
+      it('should swap FLR to WFLR', async function () {
+        const [user] = await ethers.getSigners();
+        const contract = await ethers.getContractAt('FlareCrossChainDEX', 'CONTRACT_ADDRESS');
+        await contract.swapFLRtoWFLR(ethers.parseUnits('1', 18));
+        // Add assertions
+      });
+    });
+    ```
+
+#### 6. Security and Optimization
+- **Security**:
+  - Use OpenZeppelin’s audited contracts to prevent reentrancy and other vulnerabilities.
+  - Implement slippage protection in the front-end and contract (e.g., `minReturn` in `swapWithOneInch`).
+  - Plan a professional audit with Certik or Trail of Bits before scaling.
+- **Optimization**:
+  - Optimize gas usage in `swap` and `swapWithOneInch` functions.
+  - Cache 1inch API calls to reduce latency.
+
+#### 7. User Experience Enhancements
+- Add real-time price feeds from Flare’s FTSO or 1inch API to display expected output amounts.
+- Show transaction status (pending, confirmed) in the UI.
+- Provide tooltips explaining fees (0.3%) and slippage settings.
+
+### Example Workflow for Buying/Selling Tokens
+1. **User Action**: User connects MetaMask, selects FLR as input, ETH as output, and enters 100 FLR.
+2. **Internal Swap**: If FLR/ETH pool exists, call `swap` in your contract.
+3. **1inch Swap**: If no local pool or better rates are available, fetch swap data from 1inch API and call `swapWithOneInch`.
+4. **Cross-Chain Swap**: For chains like Ethereum, call `crossChainSwap` to bridge FLR, then execute the swap on the destination chain.
+5. **Result**: User receives ETH in their wallet (on Flare or Ethereum, depending on the swap type).
+
+### Next Steps
+- **Replit Setup**: Initialize a Replit project with Hardhat and React.js, using the provided contract and front-end code.
+- **API Key**: Obtain a 1inch API key (if required) or use open endpoints.
+- **Bridge Integration**: Register with LayerZero or Wormhole for cross-chain functionality and get their endpoint addresses.
+- **Test Small**: Deploy to Flare mainnet with a test account and swap small amounts (e.g., 1 FLR) to verify functionality.
+- **Community Feedback**: Share the project with Flare’s community on Discord/X for user testing.
