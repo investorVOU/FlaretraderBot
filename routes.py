@@ -288,13 +288,14 @@ def execute_onchain_trade():
         from_token = data.get('from_token')
         to_token = data.get('token')
         amount = float(data.get('amount', 0))
+        use_oneinch = data.get('use_oneinch', False)
         
         wallet_address = wallet_service.get_connected_wallet()
         blockchain_service = get_blockchain_service()
         
         if trade_type == 'swap':
-            success, message = blockchain_service.execute_swap_on_enosys(
-                from_token, to_token, amount, wallet_address
+            success, message = blockchain_service.execute_dex_swap(
+                from_token, to_token, amount, wallet_address, use_oneinch
             )
             
             if success:
@@ -313,7 +314,8 @@ def execute_onchain_trade():
             return jsonify({
                 'success': success,
                 'message': message,
-                'onchain': True
+                'onchain': True,
+                'use_oneinch': use_oneinch
             })
         else:
             return jsonify({
@@ -326,4 +328,162 @@ def execute_onchain_trade():
         return jsonify({
             'success': False,
             'message': f'Onchain trade failed: {str(e)}'
+        }), 500
+
+@app.route('/api/execute_dex_swap', methods=['POST'])
+def execute_dex_swap():
+    """Execute DEX swap with 1inch integration"""
+    try:
+        wallet_service = get_wallet_service()
+        if not wallet_service.is_wallet_connected():
+            return jsonify({
+                'success': False,
+                'message': 'Wallet connection required for DEX trading'
+            }), 401
+        
+        data = request.json
+        from_token = data.get('from_token')
+        to_token = data.get('to_token')
+        amount = float(data.get('amount', 0))
+        use_oneinch = data.get('use_oneinch', False)
+        
+        wallet_address = wallet_service.get_connected_wallet()
+        blockchain_service = get_blockchain_service()
+        
+        success, message = blockchain_service.execute_dex_swap(
+            from_token, to_token, amount, wallet_address, use_oneinch
+        )
+        
+        if success:
+            # Record the trade
+            trade = Trade(
+                trade_type='dex_swap',
+                from_token=from_token,
+                to_token=to_token,
+                amount=amount,
+                price=Token.query.filter_by(symbol=to_token).first().price,
+                total_value=amount * Token.query.filter_by(symbol=to_token).first().price
+            )
+            db.session.add(trade)
+            db.session.commit()
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'use_oneinch': use_oneinch,
+            'transaction_ready': success
+        })
+        
+    except Exception as e:
+        logging.error(f"Error executing DEX swap: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'DEX swap failed: {str(e)}'
+        }), 500
+
+@app.route('/api/execute_cross_chain', methods=['POST'])
+def execute_cross_chain():
+    """Execute cross-chain swap via bridge"""
+    try:
+        wallet_service = get_wallet_service()
+        if not wallet_service.is_wallet_connected():
+            return jsonify({
+                'success': False,
+                'message': 'Wallet connection required for cross-chain trading'
+            }), 401
+        
+        data = request.json
+        from_token = data.get('from_token')
+        amount = float(data.get('amount', 0))
+        destination_chain = data.get('destination_chain')
+        to_token = data.get('to_token', from_token)
+        recipient = data.get('recipient')
+        
+        wallet_address = wallet_service.get_connected_wallet()
+        if not recipient:
+            recipient = wallet_address
+        
+        blockchain_service = get_blockchain_service()
+        
+        success, message = blockchain_service.execute_cross_chain_swap(
+            from_token, amount, destination_chain, to_token, wallet_address, recipient
+        )
+        
+        if success:
+            # Record the trade
+            trade = Trade(
+                trade_type='cross_chain',
+                from_token=from_token,
+                to_token=to_token,
+                amount=amount,
+                price=Token.query.filter_by(symbol=from_token).first().price,
+                total_value=amount * Token.query.filter_by(symbol=from_token).first().price
+            )
+            db.session.add(trade)
+            db.session.commit()
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'destination_chain': destination_chain,
+            'transaction_ready': success
+        })
+        
+    except Exception as e:
+        logging.error(f"Error executing cross-chain swap: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Cross-chain swap failed: {str(e)}'
+        }), 500
+
+@app.route('/api/add_liquidity', methods=['POST'])
+def add_liquidity():
+    """Add liquidity to trading pair"""
+    try:
+        wallet_service = get_wallet_service()
+        if not wallet_service.is_wallet_connected():
+            return jsonify({
+                'success': False,
+                'message': 'Wallet connection required for liquidity provision'
+            }), 401
+        
+        data = request.json
+        token_a = data.get('token_a')
+        token_b = data.get('token_b')
+        amount_a = float(data.get('amount_a', 0))
+        amount_b = float(data.get('amount_b', 0))
+        
+        wallet_address = wallet_service.get_connected_wallet()
+        blockchain_service = get_blockchain_service()
+        
+        success, message = blockchain_service.add_liquidity(
+            token_a, token_b, amount_a, amount_b, wallet_address
+        )
+        
+        if success:
+            # Record the liquidity addition
+            trade = Trade(
+                trade_type='add_liquidity',
+                from_token=token_a,
+                to_token=token_b,
+                amount=amount_a,
+                price=amount_b / amount_a if amount_a > 0 else 0,
+                total_value=amount_a * Token.query.filter_by(symbol=token_a).first().price + 
+                           amount_b * Token.query.filter_by(symbol=token_b).first().price
+            )
+            db.session.add(trade)
+            db.session.commit()
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'pair': f"{token_a}/{token_b}",
+            'transaction_ready': success
+        })
+        
+    except Exception as e:
+        logging.error(f"Error adding liquidity: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Add liquidity failed: {str(e)}'
         }), 500

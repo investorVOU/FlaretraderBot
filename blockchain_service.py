@@ -39,6 +39,62 @@ class FlareBlockchainService:
             'FLR': '0x0000000000000000000000000000000000000001',   # Native FLR (special address)
         }
         
+        # DEX Contract Integration
+        self.dex_contract_address = os.environ.get('DEX_CONTRACT_ADDRESS', '')
+        self.dex_contract_abi = [
+            {
+                "inputs": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "amountIn", "type": "uint256"}
+                ],
+                "name": "swap",
+                "outputs": [{"name": "amountOut", "type": "uint256"}],
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "minReturn", "type": "uint256"},
+                    {"name": "oneInchData", "type": "bytes"}
+                ],
+                "name": "swapWithOneInch",
+                "outputs": [{"name": "amountOut", "type": "uint256"}],
+                "type": "function"
+            },
+            {
+                "inputs": [{"name": "amount", "type": "uint256"}],
+                "name": "swapFLRtoWFLR",
+                "outputs": [],
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {"name": "tokenIn", "type": "address"},
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "destinationChain", "type": "string"},
+                    {"name": "tokenOut", "type": "address"},
+                    {"name": "recipient", "type": "address"}
+                ],
+                "name": "crossChainSwap",
+                "outputs": [],
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {"name": "tokenA", "type": "address"},
+                    {"name": "tokenB", "type": "address"},
+                    {"name": "amountA", "type": "uint256"},
+                    {"name": "amountB", "type": "uint256"}
+                ],
+                "name": "addLiquidity",
+                "outputs": [],
+                "type": "function"
+            }
+        ]
+        
         # FTSO Feed IDs for price data
         self.ftso_feed_ids = {
             'FLR/USD': '0x01464c522f555344000000000000000000000000000000000000000000000000',
@@ -295,33 +351,221 @@ class FlareBlockchainService:
         # Simplified encoding - real implementation would use proper ABI encoding
         return f"0x4164647265737356616c696469747900000000000000000000000000000000{address.replace('0x', '')}"
     
-    def execute_swap_on_enosys(self, from_token: str, to_token: str, amount: float, wallet_address: str) -> Tuple[bool, str]:
+    def execute_dex_swap(self, from_token: str, to_token: str, amount: float, wallet_address: str, use_oneinch: bool = False) -> Tuple[bool, str]:
         """
-        Execute a swap on Enosys DEX using real smart contracts
+        Execute a swap using our DEX contract with optional 1inch aggregation
         """
         try:
             if not self.w3.is_connected():
                 return False, "Web3 not connected to Flare network"
             
-            # Validate wallet address using FDC
+            if not self.dex_contract_address:
+                return False, "DEX contract not deployed"
+            
+            # Validate wallet address
             is_valid = self.validate_address_with_fdc(wallet_address, 'flare')
             if not is_valid:
                 return False, f"Invalid wallet address: {wallet_address}"
             
-            # For real implementation, this would:
-            # 1. Get Enosys DEX router contract
-            # 2. Calculate swap amounts and slippage
-            # 3. Build transaction data
-            # 4. Estimate gas
-            # 5. Sign and broadcast transaction
+            # Get token addresses
+            from_token_address = self.token_addresses.get(from_token)
+            to_token_address = self.token_addresses.get(to_token)
             
-            # Currently returning mock success since Enosys contracts need to be integrated
-            logger.info(f"Executing swap on Flare Network: {amount} {from_token} -> {to_token}")
-            return True, f"Swap executed: {amount} {from_token} → {to_token} on Flare Network"
+            if not from_token_address or not to_token_address:
+                return False, f"Token addresses not found for {from_token} or {to_token}"
+            
+            # Create contract instance
+            dex_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(self.dex_contract_address),
+                abi=self.dex_contract_abi
+            )
+            
+            # Convert amount to wei
+            amount_wei = Web3.to_wei(amount, 'ether')
+            
+            if from_token == 'FLR' and to_token == 'WFLR':
+                # Special case for FLR to WFLR wrapping
+                tx_data = dex_contract.functions.swapFLRtoWFLR(amount_wei).build_transaction({
+                    'from': wallet_address,
+                    'gas': 100000,
+                    'gasPrice': Web3.to_wei('25', 'gwei'),
+                    'nonce': self.w3.eth.get_transaction_count(wallet_address)
+                })
+                
+                logger.info(f"Built FLR->WFLR wrap transaction: {amount} FLR")
+                return True, f"Wrap transaction ready: {amount} FLR → WFLR"
+                
+            elif use_oneinch:
+                # Use 1inch aggregator
+                oneinch_data = self._get_oneinch_swap_data(from_token, to_token, amount)
+                if not oneinch_data:
+                    return False, "Failed to get 1inch swap data"
+                
+                min_return = int(oneinch_data['toAmount']) * 95 // 100  # 5% slippage
+                
+                tx_data = dex_contract.functions.swapWithOneInch(
+                    Web3.to_checksum_address(from_token_address),
+                    Web3.to_checksum_address(to_token_address),
+                    amount_wei,
+                    min_return,
+                    oneinch_data['tx']['data']
+                ).build_transaction({
+                    'from': wallet_address,
+                    'gas': 300000,
+                    'gasPrice': Web3.to_wei('25', 'gwei'),
+                    'nonce': self.w3.eth.get_transaction_count(wallet_address)
+                })
+                
+                logger.info(f"Built 1inch swap transaction: {amount} {from_token} -> {to_token}")
+                return True, f"1inch swap ready: {amount} {from_token} → {to_token}"
+                
+            else:
+                # Use internal liquidity pool
+                tx_data = dex_contract.functions.swap(
+                    Web3.to_checksum_address(from_token_address),
+                    Web3.to_checksum_address(to_token_address),
+                    amount_wei
+                ).build_transaction({
+                    'from': wallet_address,
+                    'gas': 200000,
+                    'gasPrice': Web3.to_wei('25', 'gwei'),
+                    'nonce': self.w3.eth.get_transaction_count(wallet_address)
+                })
+                
+                logger.info(f"Built internal swap transaction: {amount} {from_token} -> {to_token}")
+                return True, f"Internal swap ready: {amount} {from_token} → {to_token}"
             
         except Exception as e:
-            logger.error(f"Error executing swap: {e}")
-            return False, f"Swap failed: {str(e)}"
+            logger.error(f"Error building DEX swap: {e}")
+            return False, f"DEX swap failed: {str(e)}"
+    
+    def execute_cross_chain_swap(self, from_token: str, amount: float, destination_chain: str, to_token: str, wallet_address: str, recipient: str) -> Tuple[bool, str]:
+        """
+        Execute a cross-chain swap via bridge
+        """
+        try:
+            if not self.w3.is_connected():
+                return False, "Web3 not connected to Flare network"
+            
+            if not self.dex_contract_address:
+                return False, "DEX contract not deployed"
+            
+            from_token_address = self.token_addresses.get(from_token)
+            to_token_address = self.token_addresses.get(to_token, "0x0000000000000000000000000000000000000000")
+            
+            if not from_token_address:
+                return False, f"Token address not found for {from_token}"
+            
+            dex_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(self.dex_contract_address),
+                abi=self.dex_contract_abi
+            )
+            
+            amount_wei = Web3.to_wei(amount, 'ether')
+            
+            tx_data = dex_contract.functions.crossChainSwap(
+                Web3.to_checksum_address(from_token_address),
+                amount_wei,
+                destination_chain,
+                Web3.to_checksum_address(to_token_address),
+                Web3.to_checksum_address(recipient)
+            ).build_transaction({
+                'from': wallet_address,
+                'gas': 400000,
+                'gasPrice': Web3.to_wei('25', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(wallet_address)
+            })
+            
+            logger.info(f"Built cross-chain swap: {amount} {from_token} -> {destination_chain}")
+            return True, f"Cross-chain swap ready: {amount} {from_token} → {destination_chain}"
+            
+        except Exception as e:
+            logger.error(f"Error building cross-chain swap: {e}")
+            return False, f"Cross-chain swap failed: {str(e)}"
+    
+    def add_liquidity(self, token_a: str, token_b: str, amount_a: float, amount_b: float, wallet_address: str) -> Tuple[bool, str]:
+        """
+        Add liquidity to a trading pair
+        """
+        try:
+            if not self.w3.is_connected():
+                return False, "Web3 not connected to Flare network"
+            
+            if not self.dex_contract_address:
+                return False, "DEX contract not deployed"
+            
+            token_a_address = self.token_addresses.get(token_a)
+            token_b_address = self.token_addresses.get(token_b)
+            
+            if not token_a_address or not token_b_address:
+                return False, f"Token addresses not found for {token_a} or {token_b}"
+            
+            dex_contract = self.w3.eth.contract(
+                address=Web3.to_checksum_address(self.dex_contract_address),
+                abi=self.dex_contract_abi
+            )
+            
+            amount_a_wei = Web3.to_wei(amount_a, 'ether')
+            amount_b_wei = Web3.to_wei(amount_b, 'ether')
+            
+            tx_data = dex_contract.functions.addLiquidity(
+                Web3.to_checksum_address(token_a_address),
+                Web3.to_checksum_address(token_b_address),
+                amount_a_wei,
+                amount_b_wei
+            ).build_transaction({
+                'from': wallet_address,
+                'gas': 250000,
+                'gasPrice': Web3.to_wei('25', 'gwei'),
+                'nonce': self.w3.eth.get_transaction_count(wallet_address)
+            })
+            
+            logger.info(f"Built add liquidity: {amount_a} {token_a} + {amount_b} {token_b}")
+            return True, f"Add liquidity ready: {amount_a} {token_a} + {amount_b} {token_b}"
+            
+        except Exception as e:
+            logger.error(f"Error building add liquidity: {e}")
+            return False, f"Add liquidity failed: {str(e)}"
+    
+    def _get_oneinch_swap_data(self, from_token: str, to_token: str, amount: float) -> Optional[dict]:
+        """
+        Get swap data from 1inch API
+        """
+        try:
+            # 1inch API for Flare (chainId 14)
+            url = "https://api.1inch.io/v5.0/14/swap"
+            
+            from_token_address = self.token_addresses.get(from_token)
+            to_token_address = self.token_addresses.get(to_token)
+            
+            if not from_token_address or not to_token_address:
+                return None
+            
+            params = {
+                'fromTokenAddress': from_token_address,
+                'toTokenAddress': to_token_address,
+                'amount': str(Web3.to_wei(amount, 'ether')),
+                'fromAddress': self.dex_contract_address,
+                'slippage': 1,
+                'disableEstimate': True
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"1inch API error: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting 1inch data: {e}")
+            return None
+    
+    def execute_swap_on_enosys(self, from_token: str, to_token: str, amount: float, wallet_address: str) -> Tuple[bool, str]:
+        """
+        Legacy method - redirect to new DEX swap
+        """
+        return self.execute_dex_swap(from_token, to_token, amount, wallet_address, use_oneinch=False)
 
 # Global service instance
 blockchain_service = FlareBlockchainService()
