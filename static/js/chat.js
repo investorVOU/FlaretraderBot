@@ -1,118 +1,115 @@
-// Chat interface JavaScript
 
-let isProcessing = false;
+let isConnected = false;
+let walletAddress = '';
 
+// Initialize chat functionality
 document.addEventListener('DOMContentLoaded', function() {
-    initializeChatInterface();
-    scrollToBottom();
+    setupChatHandlers();
+    setupWalletHandlers();
+    checkWalletStatus();
 });
 
-function initializeChatInterface() {
+function setupChatHandlers() {
     const chatForm = document.getElementById('chatForm');
     const chatInput = document.getElementById('chatInput');
     const sendButton = document.getElementById('sendButton');
-    
-    // Check blockchain connection status
-    checkBlockchainStatus();
-    
-    // Handle form submission
-    chatForm.addEventListener('submit', handleChatSubmit);
-    
-    // Handle quick command buttons
-    document.querySelectorAll('.quick-command').forEach(button => {
-        button.addEventListener('click', function() {
-            const command = this.getAttribute('data-command');
-            chatInput.value = command;
-            chatInput.focus();
-        });
-    });
-    
-    // Handle Enter key
-    chatInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (!isProcessing) {
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', handleChatSubmit);
+    }
+
+    if (chatInput) {
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
                 handleChatSubmit(e);
             }
-        }
+        });
+    }
+
+    // Quick command buttons
+    document.querySelectorAll('.quick-command').forEach(button => {
+        button.addEventListener('click', function() {
+            const command = this.dataset.command;
+            if (command) {
+                chatInput.value = command;
+                handleChatSubmit();
+            }
+        });
     });
-    
-    // Auto-focus on chat input
-    chatInput.focus();
-    
-    // Periodically refresh blockchain status
-    setInterval(checkBlockchainStatus, 30000); // Check every 30 seconds
+}
+
+function setupWalletHandlers() {
+    const connectBtn = document.getElementById('connectWallet');
+    const disconnectBtn = document.getElementById('disconnectWallet');
+
+    if (connectBtn) {
+        connectBtn.addEventListener('click', connectWallet);
+    }
+
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', disconnectWallet);
+    }
 }
 
 async function handleChatSubmit(e) {
-    e.preventDefault();
-    
-    if (isProcessing) return;
+    if (e) e.preventDefault();
     
     const chatInput = document.getElementById('chatInput');
     const sendButton = document.getElementById('sendButton');
     const message = chatInput.value.trim();
-    
+
     if (!message) return;
-    
-    // Update UI
-    isProcessing = true;
-    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    sendButton.disabled = true;
-    chatInput.disabled = true;
-    
+
     // Add user message to chat
     addMessageToChat(message, 'user');
     
-    // Clear input
+    // Clear input and show loading
     chatInput.value = '';
-    
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Sending</span>';
+
     try {
-        // Send message to backend
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({ message: message })
         });
+
+        const data = await response.json();
         
-        const result = await response.json();
-        
-        // Add bot response to chat
-        addMessageToChat(result.response, 'bot', result.trade_info);
-        
+        if (data.response) {
+            addMessageToChat(data.response, 'bot');
+            
+            // Show trade notification if applicable
+            if (data.trade_executed && data.trade_info) {
+                showTradeNotification(data.trade_info);
+            }
+        } else {
+            addMessageToChat('Sorry, I encountered an error processing your request.', 'bot');
+        }
     } catch (error) {
-        addMessageToChat('Sorry, I encountered an error processing your request. Please try again.', 'bot');
         console.error('Chat error:', error);
+        addMessageToChat('Sorry, I\'m having trouble connecting. Please try again.', 'bot');
     } finally {
-        // Reset UI
-        isProcessing = false;
-        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
         sendButton.disabled = false;
-        chatInput.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i><span>Send</span>';
         chatInput.focus();
     }
 }
 
-function addMessageToChat(message, type, tradeInfo = null) {
+function addMessageToChat(message, sender) {
     const chatMessages = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-bubble max-w-4xl';
-    
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-    });
-    
-    if (type === 'user') {
+
+    if (sender === 'user') {
         messageDiv.innerHTML = `
             <div class="flex items-start space-x-3 justify-end">
                 <div class="bg-flare-500 rounded-2xl rounded-tr-none px-4 py-3 max-w-md">
                     <div class="text-white text-sm leading-relaxed">${escapeHtml(message)}</div>
-                    <div class="text-flare-100 text-xs mt-1">${timeString}</div>
                 </div>
                 <div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-user text-white text-sm"></i>
@@ -120,50 +117,30 @@ function addMessageToChat(message, type, tradeInfo = null) {
             </div>
         `;
     } else {
-        let tradeInfoHtml = '';
-        if (tradeInfo) {
-            tradeInfoHtml = `
-                <div class="bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2 mt-2">
-                    <div class="flex items-center text-green-400 text-sm">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        Trade executed: ${escapeHtml(tradeInfo)}
-                    </div>
-                </div>
-            `;
-        }
-        
         messageDiv.innerHTML = `
             <div class="flex items-start space-x-3">
                 <div class="w-8 h-8 bg-flare-500 rounded-full flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-robot text-white text-sm"></i>
                 </div>
-                <div class="bg-gray-700/50 rounded-2xl rounded-tl-none px-4 py-3 max-w-2xl">
+                <div class="bg-gray-700/50 rounded-2xl rounded-tl-none px-4 py-3 max-w-md">
                     <div class="text-white text-sm leading-relaxed">${formatBotMessage(message)}</div>
-                    <div class="text-gray-400 text-xs mt-1">${timeString}</div>
-                    ${tradeInfoHtml}
                 </div>
             </div>
         `;
     }
-    
+
     chatMessages.appendChild(messageDiv);
-    scrollToBottom();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function formatBotMessage(message) {
     // Convert markdown-style formatting to HTML
-    let formatted = escapeHtml(message);
-    
-    // Bold text
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // Bullet points
-    formatted = formatted.replace(/^• (.+)$/gm, '&nbsp;&nbsp;• $1');
-    
-    // Line breaks
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    return formatted;
+    return message
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code class="bg-gray-600 px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(/\n/g, '<br>')
+        .replace(/• /g, '• ');
 }
 
 function escapeHtml(text) {
@@ -172,42 +149,141 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function scrollToBottom() {
-    const chatMessages = document.getElementById('chatMessages');
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+function showTradeNotification(tradeInfo) {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+    notification.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <i class="fas fa-check-circle"></i>
+            <span>Trade executed: ${tradeInfo}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
 }
 
-// Auto-scroll to bottom when new messages are added
-const chatMessages = document.getElementById('chatMessages');
-if (chatMessages) {
-    const observer = new MutationObserver(scrollToBottom);
-    observer.observe(chatMessages, { childList: true });
-}
-
-// Blockchain status checking function
-async function checkBlockchainStatus() {
+// Wallet connection functions
+async function connectWallet() {
     try {
-        const response = await fetch('/api/refresh_prices');
-        const data = await response.json();
-        
-        const statusElement = document.getElementById('blockchain-status');
-        if (!statusElement) return;
-        
-        if (data.success) {
-            statusElement.className = 'px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium';
-            statusElement.innerHTML = '🔗 Blockchain Connected';
+        if (typeof window.ethereum !== 'undefined') {
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            
+            if (accounts.length > 0) {
+                const address = accounts[0];
+                
+                // Send wallet connection to backend
+                const response = await fetch('/api/wallet/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        address: address,
+                        chainId: parseInt(chainId, 16)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateWalletUI(address, true);
+                    showNotification('Wallet connected successfully!', 'success');
+                } else {
+                    showNotification('Failed to connect wallet: ' + result.message, 'error');
+                }
+            }
         } else {
-            statusElement.className = 'px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-sm font-medium';
-            statusElement.innerHTML = '⚠️ Using Fallback Data';
+            showNotification('Please install MetaMask or another Web3 wallet', 'error');
         }
     } catch (error) {
-        const statusElement = document.getElementById('blockchain-status');
-        if (statusElement) {
-            statusElement.className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-sm font-medium';
-            statusElement.innerHTML = '❌ Connection Error';
-        }
+        console.error('Wallet connection error:', error);
+        showNotification('Failed to connect wallet', 'error');
     }
 }
 
-// Check blockchain status periodically
-setInterval(checkBlockchainStatus, 30000); // Check every 30 seconds
+async function disconnectWallet() {
+    try {
+        const response = await fetch('/api/wallet/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            updateWalletUI('', false);
+            showNotification('Wallet disconnected', 'info');
+        }
+    } catch (error) {
+        console.error('Wallet disconnection error:', error);
+        showNotification('Failed to disconnect wallet', 'error');
+    }
+}
+
+async function checkWalletStatus() {
+    try {
+        const response = await fetch('/api/wallet/status');
+        const status = await response.json();
+        
+        if (status.connected && status.address) {
+            updateWalletUI(status.address, true);
+        }
+    } catch (error) {
+        console.error('Error checking wallet status:', error);
+    }
+}
+
+function updateWalletUI(address, connected) {
+    const connectBtn = document.getElementById('connectWallet');
+    const connectedDiv = document.getElementById('walletConnected');
+    const addressSpan = document.getElementById('walletAddress');
+    
+    isConnected = connected;
+    walletAddress = address;
+    
+    if (connected && address) {
+        connectBtn.classList.add('hidden');
+        connectedDiv.classList.remove('hidden');
+        addressSpan.textContent = address.substring(0, 6) + '...' + address.substring(address.length - 4);
+    } else {
+        connectBtn.classList.remove('hidden');
+        connectedDiv.classList.add('hidden');
+    }
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    const bgColor = {
+        'success': 'bg-green-500',
+        'error': 'bg-red-500',
+        'info': 'bg-blue-500'
+    }[type] || 'bg-gray-500';
+    
+    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg z-50`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 4000);
+}
+
+// Handle wallet account changes
+if (typeof window.ethereum !== 'undefined') {
+    window.ethereum.on('accountsChanged', function (accounts) {
+        if (accounts.length === 0) {
+            updateWalletUI('', false);
+        } else if (accounts[0] !== walletAddress) {
+            connectWallet();
+        }
+    });
+
+    window.ethereum.on('chainChanged', function (chainId) {
+        // Reload the page on chain change
+        window.location.reload();
+    });
+}

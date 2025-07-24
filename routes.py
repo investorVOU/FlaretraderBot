@@ -488,61 +488,7 @@ def add_liquidity():
             'message': f'Add liquidity failed: {str(e)}'
         }), 500
 
-@app.route('/api/execute_onchain_trade', methods=['POST'])
-def execute_onchain_trade():
-    """Execute a real onchain trade via smart contracts"""
-    try:
-        wallet_service = get_wallet_service()
-        if not wallet_service.is_wallet_connected():
-            return jsonify({
-                'success': False,
-                'message': 'Wallet connection required for onchain trading'
-            }), 401
 
-        data = request.json
-        trade_type = data.get('type')
-        from_token = data.get('from_token')
-        to_token = data.get('token')
-        amount = float(data.get('amount', 0))
-
-        wallet_address = wallet_service.get_connected_wallet()
-        blockchain_service = get_blockchain_service()
-
-        if trade_type == 'swap':
-            success, message = blockchain_service.execute_swap_on_enosys(
-                from_token, to_token, amount, wallet_address
-            )
-
-            if success:
-                # Record the trade
-                trade = Trade(
-                    trade_type=trade_type,
-                    from_token=from_token,
-                    to_token=to_token,
-                    amount=amount,
-                    price=Token.query.filter_by(symbol=to_token).first().price,
-                    total_value=amount * Token.query.filter_by(symbol=to_token).first().price
-                )
-                db.session.add(trade)
-                db.session.commit()
-
-            return jsonify({
-                'success': success,
-                'message': message,
-                'onchain': True
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Only swap operations supported onchain currently'
-            }), 400
-
-    except Exception as e:
-        logging.error(f"Error executing onchain trade: {e}")
-        return jsonify({
-            'success': False,
-            'message': f'Onchain trade failed: {str(e)}'
-        }), 500
 
 @app.route('/api/cross_chain_quote', methods=['POST'])
 def get_cross_chain_quote():
