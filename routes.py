@@ -52,7 +52,18 @@ def trading():
 
 @app.route('/portfolio')
 def portfolio():
-    portfolio_items = Portfolio.query.all()
+    # Get portfolio for connected wallet only
+    wallet_service = get_wallet_service()
+    wallet_address = wallet_service.get_connected_wallet()
+    
+    if wallet_address:
+        portfolio_items = Portfolio.query.filter(
+            Portfolio.balance > 0,
+            Portfolio.wallet_address == wallet_address
+        ).all()
+    else:
+        portfolio_items = []
+
     tokens = Token.query.all()
 
     # Calculate portfolio metrics
@@ -68,9 +79,17 @@ def portfolio():
             pnl = current_value - cost_basis
             pnl_percent = (pnl / cost_basis * 100) if cost_basis > 0 else 0
 
+            # Convert to JSON-serializable format
             portfolio_data.append({
-                'token': token,
-                'holding': holding,
+                'token': {
+                    'symbol': token.symbol,
+                    'name': token.name,
+                    'price': token.price
+                },
+                'holding': {
+                    'balance': holding.balance,
+                    'avg_buy_price': holding.avg_buy_price
+                },
                 'current_value': current_value,
                 'cost_basis': cost_basis,
                 'pnl': pnl,
@@ -88,7 +107,8 @@ def portfolio():
                          total_value=total_value,
                          total_cost=total_cost,
                          total_pnl=total_pnl,
-                         total_pnl_percent=total_pnl_percent)
+                         total_pnl_percent=total_pnl_percent,
+                         wallet_connected=wallet_address is not None)
 
 @app.route('/chat')
 def chat():

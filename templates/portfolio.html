@@ -83,7 +83,8 @@
                 </h5>
             </div>
             <div class="card-body">
-                {% if portfolio_data %}
+                {% if wallet_connected %}
+                    {% if portfolio_data %}
                     <div class="table-responsive">
                         <table class="table table-dark table-hover">
                             <thead>
@@ -138,6 +139,16 @@
                         <a href="{{ url_for('trading') }}" class="btn btn-primary">
                             <i class="fas fa-plus-circle me-2"></i>Start Trading
                         </a>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-wallet fa-4x mb-3"></i>
+                        <h4>Connect Your Wallet</h4>
+                        <p>Connect your wallet to view real portfolio balances from the blockchain</p>
+                        <button class="btn btn-primary" onclick="connectWallet()">
+                            <i class="fas fa-link me-2"></i>Connect Wallet
+                        </button>
                     </div>
                 {% endif %}
             </div>
