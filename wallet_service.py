@@ -6,20 +6,13 @@ Handles wallet connections and user authentication
 import os
 import logging
 from typing import Optional, Dict, Any
-from flask import session, request
-
-logger = logging.getLogger(__name__)
-
-import os
-import logging
-from typing import Dict, Any, Optional
-from flask import jsonify
+from flask import session, jsonify
 
 logger = logging.getLogger(__name__)
 
 class WalletService:
     """Service to handle wallet connections via WalletConnect"""
-    
+
     def __init__(self):
         # WalletConnect configuration
         self.project_id = os.environ.get('WALLETCONNECT_PROJECT_ID', '')
@@ -27,8 +20,8 @@ class WalletService:
         self.app_description = "AI-powered trading on Flare Network"
         self.app_url = os.environ.get('REPLIT_DEV_DOMAIN', 'localhost:5000')
         self.app_icons = ["https://avatars.githubusercontent.com/u/37784886"]
-        
-        # Supported chains (Flare Network)
+
+        # Supported chains (Flare Network + Cross-chain)
         self.supported_chains = {
             'flare': {
                 'chainId': 14,
@@ -43,39 +36,37 @@ class WalletService:
                 'currency': 'C2FLR',
                 'explorerUrl': 'https://coston-explorer.flare.network/',
                 'rpcUrl': 'https://coston-api.flare.network/ext/C/rpc'
-            }
-        }
-    
-    def __init__(self):
-        # WalletConnect configuration
-        self.project_id = os.environ.get('WALLETCONNECT_PROJECT_ID', '')
-        self.app_name = "Flare Trading Bot"
-        self.app_description = "AI-powered trading on Flare Network"
-        self.app_url = os.environ.get('REPLIT_DEV_DOMAIN', 'localhost:5000')
-        self.app_icons = ["https://avatars.githubusercontent.com/u/37784886"]
-        
-        # Connected wallet state
-        self.connected_wallet = None
-        self.connected_chain_id = None
-        
-        # Supported chains (Flare Network)
-        self.supported_chains = {
-            'flare': {
-                'chainId': 14,
-                'name': 'Flare Network',
-                'currency': 'FLR',
-                'explorerUrl': 'https://flare-explorer.flare.network/',
-                'rpcUrl': 'https://flare-api.flare.network/ext/C/rpc'
             },
-            'coston': {
-                'chainId': 16,
-                'name': 'Coston Testnet',
-                'currency': 'C2FLR',
-                'explorerUrl': 'https://coston-explorer.flare.network/',
-                'rpcUrl': 'https://coston-api.flare.network/ext/C/rpc'
+            'ethereum': {
+                'chainId': 1,
+                'name': 'Ethereum',
+                'currency': 'ETH',
+                'explorerUrl': 'https://etherscan.io/',
+                'rpcUrl': 'https://eth-mainnet.alchemyapi.io/v2/demo'
+            },
+            'polygon': {
+                'chainId': 137,
+                'name': 'Polygon',
+                'currency': 'MATIC',
+                'explorerUrl': 'https://polygonscan.com/',
+                'rpcUrl': 'https://polygon-rpc.com'
+            },
+            'bsc': {
+                'chainId': 56,
+                'name': 'BSC',
+                'currency': 'BNB',
+                'explorerUrl': 'https://bscscan.com/',
+                'rpcUrl': 'https://bsc-dataseed1.binance.org'
+            },
+            'avalanche': {
+                'chainId': 43114,
+                'name': 'Avalanche',
+                'currency': 'AVAX',
+                'explorerUrl': 'https://snowtrace.io/',
+                'rpcUrl': 'https://api.avax.network/ext/bc/C/rpc'
             }
         }
-    
+
     def get_wallet_config(self) -> Dict[str, Any]:
         """Get WalletConnect configuration for frontend"""
         return {
@@ -90,92 +81,29 @@ class WalletService:
         }
 
     def connect_wallet(self, wallet_address: str, chain_id: int) -> bool:
-        """Connect a wallet with given address and chain ID"""
-        try:
-            self.connected_wallet = wallet_address
-            self.connected_chain_id = chain_id
-            logger.info(f"Wallet connected: {wallet_address} on chain {chain_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error connecting wallet: {e}")
-            return False
-
-    def disconnect_wallet(self) -> bool:
-        """Disconnect the current wallet"""
-        try:
-            self.connected_wallet = None
-            self.connected_chain_id = None
-            logger.info("Wallet disconnected")
-            return True
-        except Exception as e:
-            logger.error(f"Error disconnecting wallet: {e}")
-            return False
-
-    def is_wallet_connected(self) -> bool:
-        """Check if a wallet is currently connected"""
-        return self.connected_wallet is not None
-
-    def get_connected_wallet(self) -> Optional[str]:
-        """Get the currently connected wallet address"""
-        return self.connected_wallet
-
-    def get_chain_info(self) -> Optional[Dict[str, Any]]:
-        """Get information about the connected chain"""
-        if not self.connected_chain_id:
-            return None
-        
-        for chain_info in self.supported_chains.values():
-            if chain_info['chainId'] == self.connected_chain_id:
-                return chain_info
-        return None
-
-
-# Global service instance
-wallet_service = WalletService()
-
-def get_wallet_service() -> WalletService:
-    """Get the wallet service instance"""
-    return wallet_service
-
-def require_wallet_connection(func):
-    """Decorator to require wallet connection for routes"""
-    def wrapper(*args, **kwargs):
-        if not wallet_service.is_wallet_connected():
-            return jsonify({
-                'success': False,
-                'message': 'Wallet connection required'
-            }), 401
-        return func(*args, **kwargs)
-    return wrapper
-                'icons': self.app_icons
-            },
-            'chains': list(self.supported_chains.values())
-        }
-    
-    def connect_wallet(self, wallet_address: str, chain_id: int) -> bool:
         """Store wallet connection in session"""
         try:
             # Validate wallet address format
             if not wallet_address.startswith('0x') or len(wallet_address) != 42:
                 return False
-            
+
             # Validate chain ID
             valid_chains = [chain['chainId'] for chain in self.supported_chains.values()]
             if chain_id not in valid_chains:
                 return False
-            
+
             # Store in session
             session['wallet_address'] = wallet_address
             session['chain_id'] = chain_id
             session['wallet_connected'] = True
-            
+
             logger.info(f"Wallet connected: {wallet_address} on chain {chain_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error connecting wallet: {e}")
             return False
-    
+
     def disconnect_wallet(self):
         """Clear wallet connection from session"""
         try:
@@ -185,28 +113,28 @@ def require_wallet_connection(func):
             logger.info("Wallet disconnected")
         except Exception as e:
             logger.error(f"Error disconnecting wallet: {e}")
-    
+
     def get_connected_wallet(self) -> Optional[str]:
         """Get currently connected wallet address"""
         if session.get('wallet_connected'):
             return session.get('wallet_address')
         return None
-    
+
     def is_wallet_connected(self) -> bool:
         """Check if a wallet is connected"""
         return session.get('wallet_connected', False)
-    
+
     def get_chain_info(self) -> Optional[Dict[str, Any]]:
         """Get information about the connected chain"""
         if not self.is_wallet_connected():
             return None
-        
+
         chain_id = session.get('chain_id')
         for chain_info in self.supported_chains.values():
             if chain_info['chainId'] == chain_id:
                 return chain_info
         return None
-    
+
     def sign_message(self, message: str, wallet_address: str) -> Optional[str]:
         """
         Request message signing from connected wallet
@@ -218,12 +146,12 @@ def require_wallet_connection(func):
             # 2. Frontend uses WalletConnect to request signature
             # 3. User signs in their wallet
             # 4. Signature is returned to backend
-            
+
             # For now, return a mock signature
             if self.get_connected_wallet() == wallet_address:
                 return f"0xmocksignature{hash(message)}"
             return None
-            
+
         except Exception as e:
             logger.error(f"Error signing message: {e}")
             return None
