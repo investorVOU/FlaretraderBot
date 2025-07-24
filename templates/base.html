@@ -60,53 +60,92 @@
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark-custom">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
-                <i class="fas fa-fire text-primary me-2"></i>Flare Dashboard
-            </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-robot me-1"></i>AI Trading
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'chat' %}active{% endif %}" href="{{ url_for('chat') }}">
-                            <i class="fas fa-comments me-1"></i>Full Chat
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'portfolio' %}active{% endif %}" href="{{ url_for('portfolio') }}">
-                            <i class="fas fa-wallet me-1"></i>Portfolio
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'trading' %}active{% endif %}" href="{{ url_for('trading') }}">
-                            <i class="fas fa-chart-line me-1"></i>Charts & Data
-                        </a>
-                    </li>
-                </ul>
+    <nav class="bg-gray-900 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo and Brand -->
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard') }}" class="flex items-center">
+                        <i class="fas fa-fire text-flare-500 mr-2 text-xl"></i>
+                        <span class="gradient-text text-xl font-bold">Flare Dashboard</span>
+                    </a>
+                </div>
                 
-                <div class="navbar-nav">
-                    <div class="nav-item">
-                        <button class="btn btn-outline-primary btn-sm" onclick="refreshPrices()">
-                            <i class="fas fa-sync-alt me-1"></i>Refresh Prices
+                <!-- Navigation Links -->
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="{{ url_for('dashboard') }}" 
+                           class="nav-link {% if request.endpoint == 'dashboard' %}bg-flare-600 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                            <i class="fas fa-robot mr-1"></i>AI Trading
+                        </a>
+                        <a href="{{ url_for('chat') }}" 
+                           class="nav-link {% if request.endpoint == 'chat' %}bg-flare-600 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                            <i class="fas fa-comments mr-1"></i>Full Chat
+                        </a>
+                        <a href="{{ url_for('portfolio') }}" 
+                           class="nav-link {% if request.endpoint == 'portfolio' %}bg-flare-600 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                            <i class="fas fa-wallet mr-1"></i>Portfolio
+                        </a>
+                        <a href="{{ url_for('trading') }}" 
+                           class="nav-link {% if request.endpoint == 'trading' %}bg-flare-600 text-white{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %} px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                            <i class="fas fa-chart-line mr-1"></i>Charts & Data
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Right side buttons -->
+                <div class="flex items-center space-x-3">
+                    <button onclick="refreshPrices()" 
+                            class="bg-flare-600 hover:bg-flare-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                    
+                    <!-- Wallet Connection -->
+                    <button id="connectWallet" onclick="connectWallet()"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-wallet mr-2"></i>Connect Wallet
+                    </button>
+                    
+                    <div id="walletConnected" class="hidden flex items-center bg-green-600 text-white px-3 py-2 rounded-lg text-sm">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <span id="walletAddress"></span>
+                        <button onclick="disconnectWallet()" class="ml-2 text-green-200 hover:text-white">
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>
+                
+                <!-- Mobile menu button -->
+                <div class="md:hidden">
+                    <button type="button" id="mobile-menu-button" 
+                            class="bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile menu -->
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-800">
+                <a href="{{ url_for('dashboard') }}" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+                    <i class="fas fa-robot mr-2"></i>AI Trading
+                </a>
+                <a href="{{ url_for('chat') }}" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+                    <i class="fas fa-comments mr-2"></i>Full Chat
+                </a>
+                <a href="{{ url_for('portfolio') }}" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+                    <i class="fas fa-wallet mr-2"></i>Portfolio
+                </a>
+                <a href="{{ url_for('trading') }}" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">
+                    <i class="fas fa-chart-line mr-2"></i>Charts & Data
+                </a>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="container-fluid py-4">
+    <main class="min-h-screen bg-gray-900 text-white pt-0">
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -174,6 +213,25 @@
         
         // Auto-refresh prices every 30 seconds
         setInterval(refreshPrices, 30000);
+        
+        // Mobile menu toggle
+        document.getElementById('mobile-menu-button')?.addEventListener('click', function() {
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenu.classList.toggle('hidden');
+        });
+        
+        // Wallet connection functions (will be enhanced by wallet service)
+        window.connectWallet = function() {
+            console.log('Connect wallet clicked');
+            // This will be handled by the wallet service
+        };
+        
+        window.disconnectWallet = function() {
+            const connectBtn = document.getElementById('connectWallet');
+            const connectedDiv = document.getElementById('walletConnected');
+            connectBtn.classList.remove('hidden');
+            connectedDiv.classList.add('hidden');
+        };
     </script>
     
     {% block scripts %}{% endblock %}
