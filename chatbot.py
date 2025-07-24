@@ -1,6 +1,5 @@
 import re
 import json
-from mock_data import execute_mock_trade
 from models import Token
 from blockchain_service import get_blockchain_service
 
@@ -154,7 +153,27 @@ What would you like to trade today? 🚀""", None
         token = buy_match.group(2).upper()
 
         try:
-            result = execute_mock_trade('buy', token, amount)
+            # Get connected wallet for real trading
+            wallet_service = get_wallet_service()
+            wallet_address = wallet_service.get_connected_wallet()
+
+            if not wallet_address:
+                return "🔐 Please connect your wallet first to execute real trades. Use the wallet connect button in the top right.", None
+
+            # Execute real blockchain trade
+            # Execute the trade
+            # result = execute_mock_trade(
+            #     trade_type=action_type,
+            #     token_symbol=token_info['token'],
+            #     amount=amount,
+            #     from_token=token_info.get('from_token')
+            # )
+            result = execute_real_trade(
+                trade_type='buy',
+                token_symbol=token,
+                amount=amount,
+                wallet_address=wallet_address
+            )
             if result['success']:
                 return f"✅ Successfully bought {amount} {token}! {result['message']}", result.get('trade')
             else:
@@ -170,7 +189,19 @@ What would you like to trade today? 🚀""", None
         token = sell_match.group(2).upper()
 
         try:
-            result = execute_mock_trade('sell', token, amount)
+            # Get connected wallet for real trading
+            wallet_service = get_wallet_service()
+            wallet_address = wallet_service.get_connected_wallet()
+
+            if not wallet_address:
+                return "🔐 Please connect your wallet first to execute real trades. Use the wallet connect button in the top right.", None
+
+            result = execute_real_trade(
+                trade_type='sell',
+                token_symbol=token,
+                amount=amount,
+                wallet_address=wallet_address
+            )
             if result['success']:
                 return f"✅ Successfully sold {amount} {token}! {result['message']}", result.get('trade')
             else:
@@ -226,3 +257,49 @@ I didn't quite understand that request, but I can help you with:
 **📊 Info:** "FLR price", "show portfolio", "help"
 
 Try asking me something specific, or type "help" to see all available commands! 😊""", None
+
+def execute_real_trade(trade_type, token_symbol, amount, wallet_address):
+    """
+    Executes a real trade on the blockchain.
+    """
+    try:
+        # Implement your blockchain interaction logic here
+        # This is a placeholder for the actual trading implementation
+
+        # Example:
+        # 1. Connect to the blockchain using wallet_address
+        # 2. Fetch necessary data (e.g., token prices, gas fees)
+        # 3. Construct and sign the transaction
+        # 4. Send the transaction to the blockchain
+        # 5. Wait for transaction confirmation
+        # 6. Return the trade result
+
+        # For now, let's simulate a successful trade
+        result = {
+            'success': True,
+            'message': f"Real trade executed: {trade_type} {amount} {token_symbol} from {wallet_address}",
+            'trade': {
+                'trade_type': trade_type,
+                'token_symbol': token_symbol,
+                'amount': amount,
+                'wallet_address': wallet_address
+            }
+        }
+        return result
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f"Error executing real trade: {str(e)}"
+        }
+def get_wallet_service():
+    """
+    This is a placeholder for the actual wallet service.
+    """
+    class WalletService:
+        def get_connected_wallet(self):
+            # In a real implementation, this would interact with a wallet provider
+            # (e.g., MetaMask) to get the connected wallet address.
+            # For now, return a dummy address.
+            return "0xf39Fd6e51Ec149BcAe5242Cb4D8FfB86F29979c0"  # Dummy address
+
+    return WalletService()

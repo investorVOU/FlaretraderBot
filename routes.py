@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, flash, redirect, url_for
 from app import app, db
 from models import Token, Portfolio, Trade, ChatMessage
-from mock_data import initialize_mock_data, get_current_prices, execute_mock_trade
+from mock_data import initialize_real_data, update_real_prices, execute_real_trade, sync_real_portfolio
 from chatbot import process_chat_message
 from blockchain_service import get_blockchain_service
 from wallet_service import get_wallet_service, require_wallet_connection
@@ -14,12 +14,24 @@ logging.basicConfig(level=logging.INFO)
 
 @app.route('/')
 def dashboard():
-    initialize_mock_data()
+    initialize_real_data()
     tokens = Token.query.all()
-    portfolio = Portfolio.query.filter(Portfolio.balance > 0).all()
+    
+    # Get portfolio for connected wallet only
+    wallet_service = get_wallet_service()
+    wallet_address = wallet_service.get_connected_wallet()
+    
+    if wallet_address:
+        portfolio = Portfolio.query.filter(
+            Portfolio.balance > 0,
+            Portfolio.wallet_address == wallet_address
+        ).all()
+    else:
+        portfolio = []
+    
     recent_trades = Trade.query.order_by(Trade.created_at.desc()).limit(5).all()
 
-    # Calculate total portfolio value
+    # Calculate total portfolio value from real balances
     total_value = 0
     for holding in portfolio:
         token = Token.query.filter_by(symbol=holding.token_symbol).first()
@@ -30,7 +42,8 @@ def dashboard():
                          tokens=tokens, 
                          portfolio=portfolio, 
                          recent_trades=recent_trades,
-                         total_value=total_value)
+                         total_value=total_value,
+                         wallet_connected=wallet_address is not None)
 
 @app.route('/trading')
 def trading():
@@ -84,19 +97,45 @@ def chat():
 
 @app.route('/api/execute_trade', methods=['POST'])
 def execute_trade():
+    """Execute real blockchain trades only"""
+    wallet_service = get_wallet_service()
+    if not wallet_service.is_wallet_connected():
+        return jsonify({
+            'success': False, 
+            'message': 'Wallet connection required for real trading'
+        }), 401
+
     data = request.json
     trade_type = data.get('type')
     token_symbol = data.get('token')
     amount = float(data.get('amount', 0))
+    wallet_address = wallet_service.get_connected_wallet()
 
     try:
-        result = execute_mock_trade(trade_type, token_symbol, amount, data.get('from_token'))
+        result = execute_real_trade(
+            trade_type, 
+            token_symbol, 
+            amount, 
+            data.get('from_token'),
+            wallet_address
+        )
+        
         if result['success']:
-            return jsonify({'success': True, 'message': result['message'], 'trade': result['trade']})
-        else:
-            return jsonify({'success': False, 'message': result['message']})
+            # Sync portfolio with real balances after trade
+            sync_real_portfolio(wallet_address)
+            
+        return jsonify({
+            'success': result['success'], 
+            'message': result['message'], 
+            'trade': result.get('trade'),
+            'real_trade': True
+        })
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Trade execution failed: {str(e)}'})
+        logging.error(f"Real trade execution failed: {e}")
+        return jsonify({
+            'success': False, 
+            'message': f'Real trade execution failed: {str(e)}'
+        })
 
 @app.route('/api/chat', methods=['POST'])
 def chat_api():
@@ -156,7 +195,7 @@ def get_price_data(symbol):
 
 @app.route('/api/refresh_prices')
 def refresh_prices():
-    """Refresh prices from live Flare Network data"""
+    """Refresh prices from live blockchain and market data"""
     try:
         blockchain_service = get_blockchain_service()
         blockchain_service.update_token_prices()
@@ -164,26 +203,20 @@ def refresh_prices():
         tokens = Token.query.all()
         return jsonify({
             'success': True,
-            'message': 'Prices updated from live data',
+            'message': 'Prices updated from live blockchain data',
             'tokens': [{
                 'symbol': t.symbol,
                 'price': t.price,
-                'change_24h': t.change_24h
+                'change_24h': t.change_24h,
+                'real_data': True
             } for t in tokens]
         })
     except Exception as e:
-        logging.error(f"Error refreshing prices: {e}")
-        # Fallback to mock data
-        get_current_prices()
-        tokens = Token.query.all()
+        logging.error(f"Error refreshing live prices: {e}")
         return jsonify({
             'success': False,
-            'message': 'Using fallback data - live prices unavailable',
-            'tokens': [{
-                'symbol': t.symbol,
-                'price': t.price,
-                'change_24h': t.change_24h
-            } for t in tokens]
+            'message': f'Live price update failed: {str(e)}',
+            'tokens': []
         })
 
 # Wallet connection endpoints
@@ -205,24 +238,8 @@ def connect_wallet():
         success = wallet_service.connect_wallet(wallet_address, chain_id)
 
         if success:
-            # Update portfolio with real balances
-            blockchain_service = get_blockchain_service()
-            for token in Token.query.all():
-                real_balance = blockchain_service.get_wallet_balance(wallet_address, token.symbol)
-
-                portfolio_entry = Portfolio.query.filter_by(token_symbol=token.symbol).first()
-                if portfolio_entry:
-                    portfolio_entry.balance = real_balance
-                else:
-                    if real_balance > 0:
-                        new_entry = Portfolio(
-                            token_symbol=token.symbol,
-                            balance=real_balance,
-                            avg_buy_price=token.price
-                        )
-                        db.session.add(new_entry)
-
-            db.session.commit()
+            # Sync portfolio with real blockchain balances
+            sync_real_portfolio(wallet_address)
 
             return jsonify({
                 'success': True,
