@@ -29,6 +29,16 @@
                             <i class="fas fa-shield-alt me-1"></i>Wrap
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="dex-tab" data-bs-toggle="tab" data-bs-target="#dex" type="button" role="tab">
+                            <i class="fas fa-rocket me-1"></i>DEX
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="bridge-tab" data-bs-toggle="tab" data-bs-target="#bridge" type="button" role="tab">
+                            <i class="fas fa-link me-1"></i>Bridge
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -149,6 +159,100 @@
                             </div>
                             <button type="submit" class="btn btn-info w-100">
                                 <i class="fas fa-shield-alt me-2"></i>Wrap Tokens
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- DEX Tab -->
+                    <div class="tab-pane fade" id="dex" role="tabpanel">
+                        <form id="dexForm">
+                            <div class="mb-3">
+                                <label for="dexFromToken" class="form-label">From Token</label>
+                                <select class="form-select bg-dark text-light" id="dexFromToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="dexAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="dexAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="text-center mb-3">
+                                <i class="fas fa-arrow-down text-warning fa-lg"></i>
+                            </div>
+                            <div class="mb-3">
+                                <label for="dexToToken" class="form-label">To Token</label>
+                                <select class="form-select bg-dark text-light" id="dexToToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="useOneInch">
+                                    <label class="form-check-label" for="useOneInch">
+                                        <i class="fas fa-chart-line me-1"></i>Use 1inch for best rates
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="dexPriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="fas fa-rocket me-2"></i>Execute DEX Swap
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <!-- Bridge Tab -->
+                    <div class="tab-pane fade" id="bridge" role="tabpanel">
+                        <form id="bridgeForm">
+                            <div class="mb-3">
+                                <label for="bridgeToken" class="form-label">Token to Bridge</label>
+                                <select class="form-select bg-dark text-light" id="bridgeToken" required>
+                                    <option value="">Select Token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="bridgeAmount" class="form-label">Amount</label>
+                                <input type="number" class="form-control bg-dark text-light" id="bridgeAmount" placeholder="0.00" step="0.000001" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="destinationChain" class="form-label">Destination Chain</label>
+                                <select class="form-select bg-dark text-light" id="destinationChain" required>
+                                    <option value="">Select Chain</option>
+                                    <option value="ethereum">Ethereum</option>
+                                    <option value="polygon">Polygon</option>
+                                    <option value="arbitrum">Arbitrum</option>
+                                    <option value="optimism">Optimism</option>
+                                    <option value="avalanche">Avalanche</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="bridgeToToken" class="form-label">Receive Token (optional)</label>
+                                <select class="form-select bg-dark text-light" id="bridgeToToken">
+                                    <option value="">Same as source token</option>
+                                    {% for token in tokens %}
+                                    <option value="{{ token.symbol }}">{{ token.symbol }} - {{ token.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="bridgeRecipient" class="form-label">Recipient Address (optional)</label>
+                                <input type="text" class="form-control bg-dark text-light" id="bridgeRecipient" placeholder="0x... (leave empty to use your address)">
+                            </div>
+                            <div class="mb-3">
+                                <div class="price-info" id="bridgePriceInfo"></div>
+                            </div>
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="fas fa-link me-2"></i>Bridge Tokens
                             </button>
                         </form>
                     </div>

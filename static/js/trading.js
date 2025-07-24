@@ -15,6 +15,8 @@ function initializeTradingInterface() {
     document.getElementById('sellForm').addEventListener('submit', handleSellSubmit);
     document.getElementById('swapForm').addEventListener('submit', handleSwapSubmit);
     document.getElementById('wrapForm').addEventListener('submit', handleWrapSubmit);
+    document.getElementById('dexForm').addEventListener('submit', handleDexSubmit);
+    document.getElementById('bridgeForm').addEventListener('submit', handleBridgeSubmit);
     
     // Token selection changes
     document.getElementById('buyToken').addEventListener('change', updateBuyPriceInfo);
@@ -32,6 +34,17 @@ function initializeTradingInterface() {
     
     // Chart token selection
     document.getElementById('chartTokenSelect').addEventListener('change', updatePriceChart);
+    
+    // DEX form changes
+    document.getElementById('dexFromToken').addEventListener('change', updateDexPriceInfo);
+    document.getElementById('dexToToken').addEventListener('change', updateDexPriceInfo);
+    document.getElementById('dexAmount').addEventListener('input', updateDexPriceInfo);
+    document.getElementById('useOneInch').addEventListener('change', updateDexPriceInfo);
+    
+    // Bridge form changes  
+    document.getElementById('bridgeToken').addEventListener('change', updateBridgePriceInfo);
+    document.getElementById('bridgeAmount').addEventListener('input', updateBridgePriceInfo);
+    document.getElementById('destinationChain').addEventListener('change', updateBridgePriceInfo);
     
     // Handle wrap token selection logic
     document.getElementById('wrapFromToken').addEventListener('change', function() {
@@ -79,6 +92,27 @@ async function handleWrapSubmit(e) {
     const amount = parseFloat(document.getElementById('wrapAmount').value);
     
     await executeTrade('swap', toToken, amount, fromToken);
+}
+
+async function handleDexSubmit(e) {
+    e.preventDefault();
+    const fromToken = document.getElementById('dexFromToken').value;
+    const toToken = document.getElementById('dexToToken').value;
+    const amount = parseFloat(document.getElementById('dexAmount').value);
+    const useOneInch = document.getElementById('useOneInch').checked;
+    
+    await executeDexSwap(fromToken, toToken, amount, useOneInch);
+}
+
+async function handleBridgeSubmit(e) {
+    e.preventDefault();
+    const token = document.getElementById('bridgeToken').value;
+    const amount = parseFloat(document.getElementById('bridgeAmount').value);
+    const destinationChain = document.getElementById('destinationChain').value;
+    const toToken = document.getElementById('bridgeToToken').value || token;
+    const recipient = document.getElementById('bridgeRecipient').value;
+    
+    await executeBridge(token, amount, destinationChain, toToken, recipient);
 }
 
 async function executeTrade(type, token, amount, fromToken = null) {
@@ -326,6 +360,169 @@ function quickSell(token) {
     // Switch to sell tab
     const sellTab = new bootstrap.Tab(document.getElementById('sell-tab'));
     sellTab.show();
+}
+
+async function executeDexSwap(fromToken, toToken, amount, useOneInch) {
+    const button = event.target.querySelector('button[type="submit"]');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing DEX Swap...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/execute_dex_swap', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from_token: fromToken,
+                to_token: toToken,
+                amount: amount,
+                use_oneinch: useOneInch
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const aggregator = useOneInch ? ' via 1inch' : ' via internal DEX';
+            showAlert(result.message + aggregator, 'success');
+            // Reset form
+            event.target.reset();
+            document.getElementById('dexPriceInfo').innerHTML = '';
+        } else {
+            showAlert(result.message, 'danger');
+        }
+    } catch (error) {
+        showAlert('DEX swap network error occurred', 'danger');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+async function executeBridge(token, amount, destinationChain, toToken, recipient) {
+    const button = event.target.querySelector('button[type="submit"]');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing Bridge...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/execute_cross_chain', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from_token: token,
+                amount: amount,
+                destination_chain: destinationChain,
+                to_token: toToken,
+                recipient: recipient
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert(`Bridge to ${destinationChain}: ${result.message}`, 'success');
+            // Reset form
+            event.target.reset();
+            document.getElementById('bridgePriceInfo').innerHTML = '';
+        } else {
+            showAlert(result.message, 'danger');
+        }
+    } catch (error) {
+        showAlert('Bridge network error occurred', 'danger');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+function updateDexPriceInfo() {
+    const fromToken = document.getElementById('dexFromToken').value;
+    const toToken = document.getElementById('dexToToken').value;
+    const amount = parseFloat(document.getElementById('dexAmount').value) || 0;
+    const useOneInch = document.getElementById('useOneInch').checked;
+    
+    if (fromToken && toToken && amount > 0 && tokenPrices[fromToken] && tokenPrices[toToken]) {
+        const fromPrice = tokenPrices[fromToken];
+        const toPrice = tokenPrices[toToken];
+        const totalValue = amount * fromPrice;
+        const receiveAmount = totalValue / toPrice;
+        const fee = useOneInch ? 0.1 : 0.3; // 1inch: 0.1%, Internal: 0.3%
+        const feeAmount = receiveAmount * (fee / 100);
+        const finalAmount = receiveAmount - feeAmount;
+        
+        document.getElementById('dexPriceInfo').innerHTML = `
+            <div class="d-flex justify-content-between">
+                <span>You pay:</span>
+                <span class="price-display">${amount} ${fromToken}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>You receive:</span>
+                <span class="price-display">${finalAmount.toFixed(6)} ${toToken}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Exchange rate:</span>
+                <span class="total-cost">1 ${fromToken} = ${(fromPrice / toPrice).toFixed(6)} ${toToken}</span>
+            </div>
+            <div class="d-flex justify-content-between text-muted">
+                <span>Fee (${fee}%):</span>
+                <span>${feeAmount.toFixed(6)} ${toToken}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span><strong>Route:</strong></span>
+                <span class="text-${useOneInch ? 'warning' : 'info'}">${useOneInch ? '1inch Aggregator' : 'Internal DEX'}</span>
+            </div>
+        `;
+    } else {
+        document.getElementById('dexPriceInfo').innerHTML = '';
+    }
+}
+
+function updateBridgePriceInfo() {
+    const token = document.getElementById('bridgeToken').value;
+    const amount = parseFloat(document.getElementById('bridgeAmount').value) || 0;
+    const destinationChain = document.getElementById('destinationChain').value;
+    
+    if (token && amount > 0 && destinationChain && tokenPrices[token]) {
+        const price = tokenPrices[token];
+        const totalValue = amount * price;
+        const bridgeFee = totalValue * 0.005; // 0.5% bridge fee
+        const estimatedGas = 50; // USD
+        const totalCost = bridgeFee + estimatedGas;
+        
+        document.getElementById('bridgePriceInfo').innerHTML = `
+            <div class="d-flex justify-content-between">
+                <span>Amount to bridge:</span>
+                <span class="price-display">${amount} ${token}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Total value:</span>
+                <span class="total-cost">$${totalValue.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between text-muted">
+                <span>Bridge fee (0.5%):</span>
+                <span>$${bridgeFee.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between text-muted">
+                <span>Est. gas fee:</span>
+                <span>~$${estimatedGas}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span><strong>Total cost:</strong></span>
+                <span class="text-warning">$${totalCost.toFixed(2)}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span><strong>Destination:</strong></span>
+                <span class="text-info">${destinationChain.charAt(0).toUpperCase() + destinationChain.slice(1)}</span>
+            </div>
+        `;
+    } else {
+        document.getElementById('bridgePriceInfo').innerHTML = '';
+    }
 }
 
 // Refresh prices and update chart
